@@ -1,9 +1,9 @@
 package services
 
 import (
-	"constellation-api/pkg/ontology"
-	"constellation-api/pkg/shared"
-	embeddednats "constellation-api/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/ontology"
+	"constellation-overwatch/pkg/shared"
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"database/sql"
 	"encoding/json"
 	"fmt"

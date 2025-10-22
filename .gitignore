@@ -7,7 +7,7 @@
 db/constellation.db
 
 # NATS data directory
-data/
+data/*
 
 # Binaries
 constellation-overwatch

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"constellation-api/pkg/shared"
+	"constellation-overwatch/pkg/shared"
 	"github.com/nats-io/nats.go"
 )
 

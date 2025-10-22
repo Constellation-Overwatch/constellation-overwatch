@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"constellation-api/pkg/shared"
+	"constellation-overwatch/pkg/shared"
 	"encoding/json"
 	"net/http"
 	"os"

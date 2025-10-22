@@ -6,7 +6,7 @@ import (
 	"log"
 	"sync"
 
-	embeddednats "constellation-api/pkg/services/embedded-nats"
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/nats-io/nats.go"
 )
 

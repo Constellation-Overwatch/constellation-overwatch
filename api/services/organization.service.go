@@ -1,7 +1,7 @@
 package services
 
 import (
-	"constellation-api/pkg/ontology"
+	"constellation-overwatch/pkg/ontology"
 	"database/sql"
 	"encoding/json"
 	"fmt"

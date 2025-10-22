@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"constellation-api/api"
-	"constellation-api/api/middleware"
-	"constellation-api/db"
-	"constellation-api/pkg/shared"
-	embeddednats "constellation-api/pkg/services/embedded-nats"
-	"constellation-api/pkg/services/workers"
+	"constellation-overwatch/api"
+	"constellation-overwatch/api/middleware"
+	"constellation-overwatch/db"
+	"constellation-overwatch/pkg/shared"
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
+	"constellation-overwatch/pkg/services/workers"
 
 	"github.com/joho/godotenv"
 )

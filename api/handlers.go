@@ -1,11 +1,11 @@
 package api
 
 import (
-	"constellation-api/api/middleware"
-	"constellation-api/api/services"
-	"constellation-api/pkg/ontology"
-	"constellation-api/pkg/shared"
-	embeddednats "constellation-api/pkg/services/embedded-nats"
+	"constellation-overwatch/api/middleware"
+	"constellation-overwatch/api/services"
+	"constellation-overwatch/pkg/ontology"
+	"constellation-overwatch/pkg/shared"
+	embeddednats "constellation-overwatch/pkg/services/embedded-nats"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -187,7 +187,7 @@ func (h *Handlers) HealthCheck(nats *embeddednats.EmbeddedNATS) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		health := shared.HealthStatus{
 			Status:    "healthy",
-			Service:   "constellation-api",
+			Service:   "constellation-overwatch",
 			Timestamp: time.Now(),
 			Details:   make(map[string]string),
 		}
