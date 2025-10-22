@@ -1,6 +1,6 @@
 # Constellation Overwatch
 
-Open source Edge C2 (Command & Control) Server Mesh Fabric designed for hybrid drone/robotic pub/sub communication, sensor data streaming, and video stream management.
+Open source Edge C4ISR (Command, Control, & Communication) Server Mesh Fabric designed for hybrid drone/robotic pub/sub communication, sensor data streaming, and video stream management.
 
 ## Overview
 
@@ -204,7 +204,7 @@ You will then get a response like this on the client:
 {"success":true,"data":{"entity_id":"5458eec0-b0e3-4290-8db5-17936dbbfc64","org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","entity_type":"aircraft_multirotor","status":"unknown","priority":"normal","is_live":false,"metadata":"{\"model\":\"DJI-M300\",\"serial\":\"ABC123456\"}","created_at":"2025-10-22T11:41:11.069194-05:00","updated_at":"2025-10-22T11:41:11.069194-05:00"}}
 ```
 
-You will see this log on your `constellation-overwatch` c2 server logs:
+You will see this log on your `constellation-overwatch` c4isr server logs:
 ```sh
 2025/10/22 11:41:11 [EntityWorker] Received entity message on subject: constellation.entities.ae9c65d0-b5f3-4cec-8ffa-68ff1173e050.created
 2025/10/22 11:41:11 [EntityWorker] Entity data:
