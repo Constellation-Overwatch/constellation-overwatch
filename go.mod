@@ -1,9 +1,10 @@
-module constellation-api
+module constellation-overwatch
 
 go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/nats-io/nats-server/v2 v2.12.1
 	github.com/nats-io/nats.go v1.47.0
