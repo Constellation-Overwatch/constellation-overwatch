@@ -1,0 +1,1 @@
+{"Created":"2025-10-22T00:27:24.593078Z","Name":"entity-processor","durable_name":"entity-processor","name":"entity-processor","deliver_policy":"all","ack_policy":"explicit","ack_wait":30000000000,"max_deliver":3,"filter_subject":"constellation.entities.\u003e","replay_policy":"instant","max_waiting":512,"max_ack_pending":1000,"num_replicas":0,"metadata":{"_nats.req.level":"0"}}
