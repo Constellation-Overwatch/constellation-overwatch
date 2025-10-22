@@ -165,52 +165,94 @@ Once the server is running, you can quickly provision an organization and create
 
 ```bash
 # Set your API token
-export TOKEN="constellation-dev-token"
+export TOKEN="constellation-dev-token" # or what you changed in .env
 
 # 1. Create an organization
-ORG_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/organizations \
+curl -s -X POST http://localhost:8080/api/v1/organizations \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Fleet",
+    "org_type": "civilian", # allowed enums 'military', 'civilian' 'commercial', 'ngo'
     "description": "Test drone fleet"
-  }')
+  }'
+```
+You will thin get a response like this:
+```json
+{"success":true,"data":{"org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","name":"My Fleet","org_type":"civilian","metadata":"{}","created_at":"2025-10-22T11:34:29.195678-05:00","updated_at":"2025-10-22T11:34:29.195678-05:00"}}
+```
 
-echo "Organization created: $ORG_RESPONSE"
-
-# Extract org_id (requires jq)
-ORG_ID=$(echo $ORG_RESPONSE | jq -r '.data.org_id')
-echo "Organization ID: $ORG_ID"
-
-# 2. Create a drone entity
-DRONE_RESPONSE=$(curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
+Start registering entities to this organization id from above at `data.org_id`:
+```sh
+export ORG_ID='ae9c65d0-b5f3-4cec-8ffa-68ff1173e050'
+curl -s -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Drone-001",
-    "entity_type": "drone",
-    "description": "Primary surveillance drone",
+    "entity_type": "aircraft_multirotor",
+    "description": "Primary vegetation inspection drone",
     "metadata": {
       "model": "DJI-M300",
       "serial": "ABC123456"
     }
-  }')
+  }'
+```
+You will then get a response like this on the client:
+```json
+{"success":true,"data":{"entity_id":"5458eec0-b0e3-4290-8db5-17936dbbfc64","org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","entity_type":"aircraft_multirotor","status":"unknown","priority":"normal","is_live":false,"metadata":"{\"model\":\"DJI-M300\",\"serial\":\"ABC123456\"}","created_at":"2025-10-22T11:41:11.069194-05:00","updated_at":"2025-10-22T11:41:11.069194-05:00"}}
+```
 
-echo "Drone entity created: $DRONE_RESPONSE"
+You will see this log on your `constellation-overwatch` c2 server logs:
+```sh
+2025/10/22 11:41:11 [EntityWorker] Received entity message on subject: constellation.entities.ae9c65d0-b5f3-4cec-8ffa-68ff1173e050.created
+2025/10/22 11:41:11 [EntityWorker] Entity data:
+{
+  "data": {
+    "entity": {
+      "created_at": "2025-10-22T11:41:11.069194-05:00",
+      "entity_id": "5458eec0-b0e3-4290-8db5-17936dbbfc64",
+      "entity_type": "aircraft_multirotor",
+      "is_live": false,
+      "metadata": "{\"model\":\"DJI-M300\",\"serial\":\"ABC123456\"}",
+      "org_id": "ae9c65d0-b5f3-4cec-8ffa-68ff1173e050",
+      "priority": "normal",
+      "status": "unknown",
+      "updated_at": "2025-10-22T11:41:11.069194-05:00"
+    },
+    "entity_id": "5458eec0-b0e3-4290-8db5-17936dbbfc64",
+    "entity_type": "aircraft_multirotor",
+    "org_id": "ae9c65d0-b5f3-4cec-8ffa-68ff1173e050",
+    "priority": "normal",
+    "status": "unknown"
+  },
+  "id": "15ad3df9-7762-49e2-8dd0-e2f2a42daecd",
+  "source": "entity-service",
+  "subject": "constellation.entities.ae9c65d0-b5f3-4cec-8ffa-68ff1173e050.created",
+  "timestamp": "2025-10-22T16:41:11.071809Z",
+  "type": "created"
+}
+```
 
-# Extract entity_id
-ENTITY_ID=$(echo $DRONE_RESPONSE | jq -r '.data.entity_id')
-echo "Entity ID: $ENTITY_ID"
+Extract `data.entity_id`
+```sh
+export ENTITY_ID='5458eec0-b0e3-4290-8db5-17936dbbfc64'
+```
 
-# 3. Get all entities in the organization
+Get all entities in the organization
+```sh
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
   -H "Authorization: Bearer $TOKEN" | jq
+```
 
-# 4. Get specific entity details
+Get specific entity details
+```sh
 curl -s "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
   -H "Authorization: Bearer $TOKEN" | jq
+```
 
-# 5. Update entity status
+Update entity status
+```sh
 curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$ENTITY_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -221,31 +263,6 @@ curl -s -X PUT "http://localhost:8080/api/v1/entities?org_id=$ORG_ID&entity_id=$
       "battery": "85%"
     }
   }' | jq
-```
-
-**Without jq** (manual ID extraction):
-
-```bash
-export TOKEN="constellation-dev-token"
-
-# Create organization
-curl -X POST http://localhost:8080/api/v1/organizations \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"My Fleet","description":"Test fleet"}'
-
-# Copy the org_id from response and use it
-export ORG_ID="paste-org-id-here"
-
-# Create entity
-curl -X POST "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Drone-001","entity_type":"drone"}'
-
-# List entities
-curl "http://localhost:8080/api/v1/entities?org_id=$ORG_ID" \
-  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## API Endpoints
@@ -319,10 +336,6 @@ go build -o constellation-overwatch ./cmd/microlith/main.go
 go test ./...
 ```
 
-## License
-
-MIT License - see LICENSE file for details
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -334,6 +347,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - [ ] Prometheus metrics integration
 - [ ] Video stream proxy support
 - [ ] Multi-region mesh networking
-- [ ] Edge device SDK (Go, Python, Rust)
+- [ ] Edge client SDK (Go, Python, Rust) - overwatch-sdk
 - [ ] Web dashboard UI
 - [ ] Mobile control application
