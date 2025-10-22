@@ -112,7 +112,7 @@ sequenceDiagram
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/constellation-overwatch.git
+git clone https://github.com/Constellation-Overwatch/constellation-overwatch.git
 cd constellation-overwatch
 
 # Install dependencies
@@ -177,6 +177,7 @@ curl -s -X POST http://localhost:8080/api/v1/organizations \
     "description": "Test drone fleet"
   }'
 ```
+
 You will thin get a response like this:
 ```json
 {"success":true,"data":{"org_id":"ae9c65d0-b5f3-4cec-8ffa-68ff1173e050","name":"My Fleet","org_type":"civilian","metadata":"{}","created_at":"2025-10-22T11:34:29.195678-05:00","updated_at":"2025-10-22T11:34:29.195678-05:00"}}
