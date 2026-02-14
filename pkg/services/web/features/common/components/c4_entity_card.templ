@@ -2,9 +2,35 @@ package components
 
 import (
 	"fmt"
+	"net/url"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/icons"
 )
+
+// MediaMTXConfig holds MediaMTX connection settings for templates
+type MediaMTXConfig struct {
+	WebRTCURL  string // WebRTC player endpoint (e.g., http://localhost:8889)
+	APIURL     string // API endpoint for stream management (e.g., http://localhost:9997)
+	ViewerUser string // Optional viewer username for auth
+	ViewerPass string // Optional viewer password for auth
+}
+
+// BuildWebRTCURL constructs the full WebRTC URL with path and optional auth
+func (c MediaMTXConfig) BuildWebRTCURL(stationID, entityID string) string {
+	path := "/" + stationID + "/" + entityID
+	if c.ViewerUser != "" && c.ViewerPass != "" {
+		return c.WebRTCURL + path + "?user=" + url.QueryEscape(c.ViewerUser) + "&pass=" + url.QueryEscape(c.ViewerPass)
+	}
+	return c.WebRTCURL + path
+}
+
+// AuthQueryString returns the auth query string if credentials are set
+func (c MediaMTXConfig) AuthQueryString() string {
+	if c.ViewerUser != "" && c.ViewerPass != "" {
+		return "?user=" + url.QueryEscape(c.ViewerUser) + "&pass=" + url.QueryEscape(c.ViewerPass)
+	}
+	return ""
+}
 
 // C4EntityCard is a robust entity component that combines telemetry and video
 // It can optionally show a detailed view with expanded telemetry and video player
@@ -187,30 +213,40 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 }
 
 // C4VideoPlayer is a standalone video component that gets appended once (not morphed)
-// This separation prevents MJPEG stream connection duplication during card morphs
-templ C4VideoPlayer(entityID string) {
-	<div class="video-container" data-entity-id={ entityID }>
+// Uses WebRTC via MediaMTX for low-latency video streaming
+// Path structure: /{station_id}/{entity_id} with optional auth
+templ C4VideoPlayer(stationID string, entityID string, mtxConfig MediaMTXConfig) {
+	<div class="video-container" data-entity-id={ entityID } data-station-id={ stationID } style="aspect-ratio: 16/9;">
 		<div class="no-signal-overlay">
 			<span>No Video Signal</span>
 		</div>
-		<img
-			class="video-mjpeg"
-			src={ "/api/v1/video/stream/" + entityID }
-			alt="Video stream"/>
+		<!-- WebRTC iframe - MediaMTX serves the player at /{station_id}/{entity_id} with optional auth -->
+		<iframe
+			class="video-webrtc"
+			src={ mtxConfig.BuildWebRTCURL(stationID, entityID) }
+			allow="autoplay; fullscreen"
+			style="width: 100%; height: 100%; border: none;"></iframe>
 	</div>
 	<div class="video-controls">
-		<span class="fps-counter" id={ "c4-fps-" + entityID }>-- fps</span>
-		<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+		<span class="stream-status" style="color: #0f0; font-size: 11px;">WebRTC</span>
+		<button class="btn-fullscreen" data-entity-id={ entityID } data-station-id={ stationID } onclick="openVideoFullscreen(this.dataset.stationId, this.dataset.entityId)">
 			Fullscreen
 		</button>
 	</div>
 }
 
 // C4EntityCardScript contains the JS logic for the card interaction and video
-templ C4EntityCardScript() {
+// Uses WebRTC via MediaMTX for video streaming
+templ C4EntityCardScript(mtxConfig MediaMTXConfig) {
+	<!-- Store MediaMTX config for JavaScript access -->
+	<script data-mediamtx-url={ mtxConfig.WebRTCURL } data-mediamtx-auth={ mtxConfig.AuthQueryString() }>
+		// Store MediaMTX URL and auth globally for video functions
+		window.MEDIAMTX_WEBRTC_URL = document.currentScript.dataset.mediamtxUrl || 'http://localhost:8889';
+		window.MEDIAMTX_AUTH = document.currentScript.dataset.mediamtxAuth || '';
+	</script>
 	<script>
-		// FPS tracking for video streams
-		const c4FpsTrackers = {};
+		// WebRTC video management for C4 entity cards
+		// MediaMTX handles the actual WebRTC connection - we just manage the iframes
 
 		function toggleEntityDetail(entityId) {
 			const card = document.getElementById('c4-entity-' + entityId);
@@ -221,102 +257,92 @@ templ C4EntityCardScript() {
 
 			if (isDetailed) {
 				body.style.display = 'block';
-				// Initialize FPS tracking for this card's video
-				initFpsTracker(card, entityId);
+				// Initialize WebRTC video for this card
+				initWebRTCVideo(card, entityId);
 			} else {
 				body.style.display = 'none';
-				// Clean up FPS tracker
-				delete c4FpsTrackers[entityId];
-				const fpsEl = document.getElementById('c4-fps-' + entityId);
-				if (fpsEl) fpsEl.textContent = '-- fps';
 			}
 		}
 
-		function initFpsTracker(card, entityId) {
-			const mjpegImg = card.querySelector('.video-mjpeg');
+		function initWebRTCVideo(card, entityId) {
+			const iframe = card.querySelector('.video-webrtc');
 			const overlay = card.querySelector('.no-signal-overlay');
-			const fpsEl = document.getElementById('c4-fps-' + entityId);
 
-			if (!mjpegImg) return;
+			if (!iframe) return;
 
-			// Initialize FPS tracker
-			c4FpsTrackers[entityId] = {
-				frameCount: 0,
-				lastTime: performance.now()
-			};
-
-			// Set up handlers for FPS tracking
-			mjpegImg.onload = function() {
+			// Hide overlay when iframe loads successfully
+			iframe.onload = function() {
 				if (overlay) overlay.style.display = 'none';
-
-				const tracker = c4FpsTrackers[entityId];
-				if (!tracker) return;
-
-				tracker.frameCount++;
-				const now = performance.now();
-				if (now - tracker.lastTime >= 1000) {
-					const fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));
-					if (fpsEl) fpsEl.textContent = fps + ' fps';
-					tracker.frameCount = 0;
-					tracker.lastTime = now;
-				}
 			};
-
-			mjpegImg.onerror = function() {
+			iframe.onerror = function() {
 				if (overlay) overlay.style.display = 'flex';
 			};
 		}
 
-		// Initialize FPS tracking for any cards that start in detailed mode
+		// Initialize WebRTC video for any cards that start in detailed mode
 		document.addEventListener('DOMContentLoaded', function() {
 			document.querySelectorAll('.c4-entity-card.detailed').forEach(function(card) {
 				const entityId = card.dataset.entityId;
-				if (entityId) initFpsTracker(card, entityId);
+				if (entityId) initWebRTCVideo(card, entityId);
 			});
 		});
 
-		function openVideoFullscreen(entityId) {
+		function openVideoFullscreen(stationId, entityId) {
 			if (!entityId) {
 				console.warn('[Video] No entityId provided for fullscreen');
 				return;
 			}
 
-			// Find the existing video element for this entity
-			const card = document.getElementById('c4-entity-' + entityId);
-			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
+			// Get MediaMTX URL and auth from global or default
+			const mediaMTXURL = window.MEDIAMTX_WEBRTC_URL || 'http://localhost:8889';
+			const authQuery = window.MEDIAMTX_AUTH || '';
+
+			// Build stream path: /{station_id}/{entity_id}
+			const streamPath = stationId ? stationId + '/' + entityId : entityId;
 
 			// Remove any existing modal first
 			const existingModal = document.getElementById('video-fullscreen-modal');
 			if (existingModal) existingModal.remove();
 
-			// Create fullscreen modal
+			// Create fullscreen modal with WebRTC iframe using safe DOM methods
 			const modal = document.createElement('div');
 			modal.id = 'video-fullscreen-modal';
-			modal.innerHTML = `
-				<div class="fullscreen-header">
-					<span class="entity-label">${entityId}</span>
-					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
-				</div>
-				<div class="fullscreen-video">
-				</div>
-			`;
-			document.body.appendChild(modal);
 
-			// Clone the existing img element to reuse the stream, or create new one
-			const fullscreenContainer = modal.querySelector('.fullscreen-video');
-			if (existingImg && existingImg.src) {
-				const clonedImg = existingImg.cloneNode(true);
-				clonedImg.style.maxWidth = '100%';
-				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
-				clonedImg.style.objectFit = 'contain';
-				fullscreenContainer.appendChild(clonedImg);
-			} else {
-				// Fallback: create new stream connection
-				const img = document.createElement('img');
-				img.src = '/api/v1/video/stream/' + entityId;
-				img.alt = 'Video stream';
-				fullscreenContainer.appendChild(img);
-			}
+			// Create header
+			const header = document.createElement('div');
+			header.className = 'fullscreen-header';
+
+			const entityLabel = document.createElement('span');
+			entityLabel.className = 'entity-label';
+			entityLabel.textContent = stationId ? stationId + ' / ' + entityId : entityId;
+
+			const streamType = document.createElement('span');
+			streamType.className = 'stream-type';
+			streamType.style.cssText = 'color: #0f0; font-size: 12px; margin-left: 10px;';
+			streamType.textContent = 'WebRTC';
+
+			const closeBtn = document.createElement('button');
+			closeBtn.className = 'close-btn';
+			closeBtn.textContent = 'Close (ESC)';
+			closeBtn.onclick = closeVideoFullscreen;
+
+			header.appendChild(entityLabel);
+			header.appendChild(streamType);
+			header.appendChild(closeBtn);
+
+			// Create video container with WebRTC iframe
+			const videoContainer = document.createElement('div');
+			videoContainer.className = 'fullscreen-video';
+
+			const iframe = document.createElement('iframe');
+			iframe.src = mediaMTXURL + '/' + streamPath + authQuery;
+			iframe.allow = 'autoplay; fullscreen';
+			iframe.style.cssText = 'width: 100%; height: 100%; border: none;';
+
+			videoContainer.appendChild(iframe);
+			modal.appendChild(header);
+			modal.appendChild(videoContainer);
+			document.body.appendChild(modal);
 
 			// ESC key to close
 			const escHandler = function(e) {

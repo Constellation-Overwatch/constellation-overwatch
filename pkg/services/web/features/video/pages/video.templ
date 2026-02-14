@@ -6,41 +6,53 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
-templ VideoPage(entityIDs []string, natsAuthToken string) {
+templ VideoPage(entityIDs []string, mtxConfig components.MediaMTXConfig) {
 	@layouts.Base("Video") {
 		@components.Navigation("video") {
 			<div class="tab-content">
-				@VideoPanel(entityIDs)
+				@VideoPanel(entityIDs, mtxConfig)
 			</div>
-			@VideoPageStyles()
+			@VideoPageStyles(mtxConfig)
 		}
 	}
 }
 
-templ VideoPanel(entityIDs []string) {
+templ VideoPanel(entityIDs []string, mtxConfig components.MediaMTXConfig) {
 	<div id="video-panel"
 		class="panel"
 		data-signals="{
 			activeStreams: [],
 			streamCount: 0,
+			onlineCount: 0,
+			offlineCount: 0,
+			mediamtxOnline: false,
 			lastUpdate: '',
 			_isConnected: false,
 			selectedEntity: ''
 		}"
 		data-init="@get('/api/video/list')">
 		<div class="panel-header">
-			<h2>Video Feeds</h2>
+			<h2>Video Feeds (WebRTC)</h2>
 			<div class="status-bar">
 				<span class="connection-status" data-show="$_isConnected">
 					<span class="status-dot connected"></span>
-					Connected
+					SSE Connected
 				</span>
 				<span class="connection-status" data-show="!$_isConnected">
 					<span class="status-dot disconnected"></span>
 					Connecting...
 				</span>
-				<span class="stats" data-show="$_isConnected" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
-					<span data-text="$streamCount + ' active streams'"></span>
+				<span class="mediamtx-status" data-show="$_isConnected && $mediamtxOnline" style="margin-left: 10px;">
+					<span class="status-dot connected" style="background: #0f8;"></span>
+					<span style="color: #0f8; font-size: 12px;">MediaMTX Online</span>
+				</span>
+				<span class="mediamtx-status" data-show="$_isConnected && !$mediamtxOnline" style="margin-left: 10px;">
+					<span class="status-dot disconnected" style="background: #f55;"></span>
+					<span style="color: #f55; font-size: 12px;">MediaMTX Offline</span>
+				</span>
+				<span class="stats" data-show="$_isConnected && $streamCount > 0" style="margin-left: 15px; color: #0ff; font-size: 0.9em;">
+					<span data-text="$onlineCount + ' live'"></span>
+					<span data-show="$offlineCount > 0" data-text="' / ' + $offlineCount + ' offline'" style="color: #888;"></span>
 				</span>
 				<span class="last-update" data-show="$lastUpdate != ''" data-text="'Updated: ' + $lastUpdate"></span>
 			</div>
@@ -70,14 +82,15 @@ templ VideoPanel(entityIDs []string) {
 				<div class="video-card-large" style="max-width: 1280px; width: 100%;">
 					<div class="video-card-header" style="background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;">
 						<span style="color: #0ff; font-weight: bold;" data-text="'Entity: ' + $selectedEntity"></span>
-						<span class="fps-counter" style="color: #888; font-size: 12px;">-- fps</span>
+						<span class="stream-status" style="color: #0f0; font-size: 12px;">WebRTC</span>
 					</div>
-					<div class="video-container-dynamic" style="background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative;">
-						<img
-							class="video-mjpeg-dynamic"
-							data-attr-src="$selectedEntity ? '/api/v1/video/stream/' + $selectedEntity : ''"
-							alt="Video stream"
-							style="width: 100%; height: auto; display: block;"/>
+					<div class="video-container-dynamic" style="background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative; aspect-ratio: 16/9;">
+						<!-- WebRTC iframe - MediaMTX serves the player at /{entityID} with optional auth -->
+						<iframe
+							class="video-webrtc-dynamic"
+							data-attr-src={ "$selectedEntity ? '" + mtxConfig.WebRTCURL + "/' + $selectedEntity + '" + mtxConfig.AuthQueryString() + "' : ''" }
+							allow="autoplay; fullscreen"
+							style="width: 100%; height: 100%; border: none;"></iframe>
 						<div class="no-signal-overlay" style="display: none;">
 							<span>No Video Signal</span>
 						</div>
@@ -90,13 +103,16 @@ templ VideoPanel(entityIDs []string) {
 					<!-- Populated by SSE from /api/video/list -->
 					<div class="empty-state" style="color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;">
 						<p>No active video streams detected.</p>
-						<p style="font-size: 12px; margin-top: 10px;">Waiting for video frames on constellation.video.* subjects...</p>
+						<p style="font-size: 12px; margin-top: 10px;">Waiting for streams on MediaMTX server...</p>
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
-	<script>
+	<!-- Store MediaMTX config for JavaScript access -->
+	<script data-mediamtx-url={ mtxConfig.WebRTCURL } data-mediamtx-auth={ mtxConfig.AuthQueryString() }>
+		window.MEDIAMTX_WEBRTC_URL = document.currentScript.dataset.mediamtxUrl;
+		window.MEDIAMTX_AUTH = document.currentScript.dataset.mediamtxAuth || '';
 		function openVideoFullscreenByEntity(entityId) {
 			if (!entityId) return;
 			openVideoFullscreen(entityId);
@@ -104,9 +120,11 @@ templ VideoPanel(entityIDs []string) {
 	</script>
 }
 
-// VideoCard renders a simple video card with MJPEG stream
-templ VideoCard(entity shared.EntityState) {
-	<div id={ "video-card-" + entity.EntityID } class="video-card" data-entity-id={ entity.EntityID }>
+// VideoCard renders a video card with WebRTC stream via MediaMTX
+// Path structure: /{station_id}/{entity_id} (OrgID serves as station_id)
+// Status can be: "live", "live (N viewers)", "offline"
+templ VideoCard(entity shared.EntityState, mtxConfig components.MediaMTXConfig) {
+	<div id={ "video-card-" + entity.EntityID } class={ "video-card", templ.KV("stream-offline", !isStreamLive(entity.Status)) } data-entity-id={ entity.EntityID } data-station-id={ entity.OrgID }>
 		<div class="video-card-header">
 			<span class="entity-name">
 				if entity.Name != "" {
@@ -115,118 +133,126 @@ templ VideoCard(entity shared.EntityState) {
 					{ entity.EntityID }
 				}
 			</span>
-			<span class="entity-type">{ entity.EntityType }</span>
+			if entity.EntityType != "" {
+				<span class="entity-type">{ entity.EntityType }</span>
+			}
 			<div class="video-card-stats">
-				<span class="fps-counter" id={ "fps-" + entity.EntityID }>-- fps</span>
-				<span class={ "status-dot", templ.KV("connected", entity.Status == "active"), templ.KV("disconnected", entity.Status != "active") }></span>
+				<span class={ "stream-status", templ.KV("online", isStreamLive(entity.Status)), templ.KV("offline", !isStreamLive(entity.Status)) }>
+					if isStreamLive(entity.Status) {
+						LIVE
+					} else {
+						OFFLINE
+					}
+				</span>
+				<span class="viewer-count"></span>
 			</div>
 		</div>
-		<div class="video-container" data-entity-id={ entity.EntityID }>
-			<div class="no-signal-overlay">
+		<div class="video-container" data-entity-id={ entity.EntityID } data-station-id={ entity.OrgID } style="aspect-ratio: 16/9;">
+			<div class={ "no-signal-overlay", templ.KV("show", !isStreamLive(entity.Status)) }>
 				<span>No Video Signal</span>
 			</div>
-			<img
-				class="video-mjpeg"
-				src={ "/api/v1/video/stream/" + entity.EntityID }
-				alt="Video stream"/>
+			<!-- WebRTC iframe - MediaMTX serves the player at /{station_id}/{entity_id} with optional auth -->
+			<iframe
+				class="video-webrtc"
+				src={ mtxConfig.BuildWebRTCURL(entity.OrgID, entity.EntityID) }
+				allow="autoplay; fullscreen"
+				style="width: 100%; height: 100%; border: none;"></iframe>
 		</div>
 		<div class="video-card-controls">
 			<span class="status-label">{ entity.Status }</span>
-			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+			<button class="btn-fullscreen" data-entity-id={ entity.EntityID } data-station-id={ entity.OrgID } onclick="openVideoFullscreen(this.dataset.stationId, this.dataset.entityId)">
 				Fullscreen
 			</button>
 		</div>
 	</div>
 }
 
+// isStreamLive checks if the status indicates a live stream
+func isStreamLive(status string) bool {
+	return status == "live" || status == "active" || len(status) > 4 && status[:4] == "live"
+}
+
 // VideoPageStyles contains the styles and scripts for the video page
-templ VideoPageStyles() {
+templ VideoPageStyles(mtxConfig components.MediaMTXConfig) {
 	<script>
-		// FPS tracking state per entity
-		const fpsTrackers = {};
+		// WebRTC stream management
+		// MediaMTX handles the actual WebRTC connection - we just manage the iframes
 
-		function initFpsTracker(entityId) {
-			if (fpsTrackers[entityId]) {
-				// Already tracking, just increment frame count
-				fpsTrackers[entityId].frameCount++;
-				const now = performance.now();
-				if (now - fpsTrackers[entityId].lastTime >= 1000) {
-					const fps = Math.round(fpsTrackers[entityId].frameCount * 1000 / (now - fpsTrackers[entityId].lastTime));
-					const fpsEl = document.getElementById('fps-' + entityId);
-					if (fpsEl) fpsEl.textContent = fps + ' fps';
-					fpsTrackers[entityId].frameCount = 0;
-					fpsTrackers[entityId].lastTime = now;
-				}
-				return;
-			}
-			// Initialize new tracker
-			fpsTrackers[entityId] = {
-				frameCount: 1,
-				lastTime: performance.now()
-			};
-		}
-
-		// Initialize FPS tracking for all video cards on page load
+		// Initialize WebRTC video cards on page load
 		document.addEventListener('DOMContentLoaded', function() {
 			document.querySelectorAll('.video-card').forEach(function(card) {
 				const entityId = card.dataset.entityId;
-				const img = card.querySelector('.video-mjpeg');
+				const iframe = card.querySelector('.video-webrtc');
 				const overlay = card.querySelector('.no-signal-overlay');
 
-				if (img) {
-					img.onload = function() {
+				if (iframe) {
+					// Hide overlay when iframe loads successfully
+					iframe.onload = function() {
 						if (overlay) overlay.style.display = 'none';
-						initFpsTracker(entityId);
 					};
-					img.onerror = function() {
+					iframe.onerror = function() {
 						if (overlay) overlay.style.display = 'flex';
 					};
 				}
 			});
 		});
 
-		function openVideoFullscreen(entityId) {
+		function openVideoFullscreen(stationId, entityId) {
 			if (!entityId) {
 				console.warn('[Video] No entityId provided for fullscreen');
 				return;
 			}
 
-			// Find the existing video element for this entity
-			const card = document.getElementById('video-card-' + entityId);
-			const existingImg = card ? card.querySelector('.video-mjpeg') : null;
+			// Get MediaMTX URL and auth from global or default
+			const mediaMTXURL = window.MEDIAMTX_WEBRTC_URL || 'http://localhost:8889';
+			const authQuery = window.MEDIAMTX_AUTH || '';
+
+			// Build stream path: /{station_id}/{entity_id}
+			const streamPath = stationId ? stationId + '/' + entityId : entityId;
 
 			// Remove any existing modal first
 			const existingModal = document.getElementById('video-fullscreen-modal');
 			if (existingModal) existingModal.remove();
 
-			// Create fullscreen modal
+			// Create fullscreen modal with WebRTC iframe using safe DOM methods
 			const modal = document.createElement('div');
 			modal.id = 'video-fullscreen-modal';
-			modal.innerHTML = `
-				<div class="fullscreen-header">
-					<span class="entity-label">${entityId}</span>
-					<button class="close-btn" onclick="closeVideoFullscreen()">Close (ESC)</button>
-				</div>
-				<div class="fullscreen-video">
-				</div>
-			`;
-			document.body.appendChild(modal);
 
-			// Clone the existing img element to reuse the stream, or create new one
-			const fullscreenContainer = modal.querySelector('.fullscreen-video');
-			if (existingImg && existingImg.src) {
-				const clonedImg = existingImg.cloneNode(true);
-				clonedImg.style.maxWidth = '100%';
-				clonedImg.style.maxHeight = 'calc(100vh - 60px)';
-				clonedImg.style.objectFit = 'contain';
-				fullscreenContainer.appendChild(clonedImg);
-			} else {
-				// Fallback: create new stream connection
-				const img = document.createElement('img');
-				img.src = '/api/v1/video/stream/' + entityId;
-				img.alt = 'Video stream';
-				fullscreenContainer.appendChild(img);
-			}
+			// Create header
+			const header = document.createElement('div');
+			header.className = 'fullscreen-header';
+
+			const entityLabel = document.createElement('span');
+			entityLabel.className = 'entity-label';
+			entityLabel.textContent = stationId ? stationId + ' / ' + entityId : entityId;
+
+			const streamType = document.createElement('span');
+			streamType.className = 'stream-type';
+			streamType.style.cssText = 'color: #0f0; font-size: 12px; margin-left: 10px;';
+			streamType.textContent = 'WebRTC';
+
+			const closeBtn = document.createElement('button');
+			closeBtn.className = 'close-btn';
+			closeBtn.textContent = 'Close (ESC)';
+			closeBtn.onclick = closeVideoFullscreen;
+
+			header.appendChild(entityLabel);
+			header.appendChild(streamType);
+			header.appendChild(closeBtn);
+
+			// Create video container
+			const videoContainer = document.createElement('div');
+			videoContainer.className = 'fullscreen-video';
+
+			const iframe = document.createElement('iframe');
+			iframe.src = mediaMTXURL + '/' + streamPath + authQuery;
+			iframe.allow = 'autoplay; fullscreen';
+			iframe.style.cssText = 'width: 100%; height: 100%; border: none;';
+
+			videoContainer.appendChild(iframe);
+			modal.appendChild(header);
+			modal.appendChild(videoContainer);
+			document.body.appendChild(modal);
 
 			// ESC key to close
 			const escHandler = function(e) {
@@ -251,6 +277,12 @@ templ VideoPageStyles() {
 			border-radius: 4px;
 			overflow: hidden;
 			border: 1px solid #333;
+			transition: border-color 0.3s ease;
+		}
+
+		.video-card.stream-offline {
+			border-color: #622;
+			opacity: 0.8;
 		}
 
 		.video-card-header {
@@ -281,6 +313,44 @@ templ VideoPageStyles() {
 			display: flex;
 			align-items: center;
 			gap: 8px;
+		}
+
+		/* Stream Status Indicator */
+		.stream-status {
+			font-size: 10px;
+			font-weight: 600;
+			padding: 2px 8px;
+			border-radius: 3px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
+		.stream-status.online {
+			background: rgba(0, 255, 100, 0.2);
+			color: #0f8;
+			animation: pulse-live 2s infinite;
+		}
+
+		.stream-status.offline {
+			background: rgba(255, 50, 50, 0.2);
+			color: #f55;
+		}
+
+		@keyframes pulse-live {
+			0%, 100% { opacity: 1; }
+			50% { opacity: 0.7; }
+		}
+
+		/* Viewer Count */
+		.viewer-count {
+			font-size: 11px;
+			color: #888;
+		}
+
+		.viewer-count:not(:empty) {
+			padding: 2px 6px;
+			background: rgba(255, 255, 255, 0.1);
+			border-radius: 3px;
 		}
 
 		.video-card-stats .fps-counter {

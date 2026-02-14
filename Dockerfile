@@ -32,7 +32,7 @@ COPY --from=builder /app/bin/overwatch /app/overwatch
 ENV DB_PATH=/data/constellation.db
 ENV NATS_DATA_DIR=/data/nats
 
-# Expose ports
-EXPOSE 4222 8222 8080
+# Expose ports (NATS TCP + HTTP/Web UI)
+EXPOSE 4222 8080
 
 ENTRYPOINT ["/app/overwatch"]

@@ -15,7 +15,8 @@ import (
 
 // MapPanel is the main container for the map view
 // It reuses the same KV watch endpoint as overwatch to get entity position data
-func MapPanel() templ.Component {
+// mtxConfig contains WebRTC server URL and optional auth for video streaming
+func MapPanel(mtxConfig common.MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -60,7 +61,7 @@ func MapPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = common.C4EntityCardScript().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = common.C4EntityCardScript(mtxConfig).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -167,7 +168,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("map-card-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 107, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 108, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -180,7 +181,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 109, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 110, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -215,7 +216,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Status)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 111, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 112, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -233,7 +234,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(formatCoord(entity.Position.Global.Latitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 118, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 119, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -246,7 +247,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(formatCoord(entity.Position.Global.Longitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 122, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 123, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +260,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(formatAltitude(entity.Position.Global.AltitudeMSL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 126, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 127, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -278,7 +279,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(formatHeading(entity.VFR.Heading))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 132, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 133, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -291,7 +292,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(formatSpeed(entity.VFR.Groundspeed))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 136, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 137, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -309,7 +310,7 @@ func MapEntityCard(entity shared.EntityState) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 141, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 142, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -370,7 +371,7 @@ func MapEntityListItem(entity shared.EntityState, isSelected bool) templ.Compone
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 150, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 151, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -391,7 +392,7 @@ func MapEntityListItem(entity shared.EntityState, isSelected bool) templ.Compone
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(getEntityDisplayName(entity))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 155, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 156, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -405,7 +406,7 @@ func MapEntityListItem(entity shared.EntityState, isSelected bool) templ.Compone
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(formatCoordShort(entity.Position.Global.Latitude, entity.Position.Global.Longitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 158, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/map/components/map_panel.templ`, Line: 159, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {

@@ -6,7 +6,6 @@ services:
     restart: unless-stopped
     ports:
       - "4222:4222"
-      - "8222:8222"
       - "8080:8080"
     volumes:
       - ./data:/app/data
@@ -16,7 +15,7 @@ services:
     environment:
       - NATS_HOST=0.0.0.0
       - NATS_PORT=4222
-      - NATS_WS_PORT=8222
+      - NATS_WS_PORT=0
       # Security Configuration
       - NATS_AUTH_ENABLED=true
       - NATS_USER=constellation
@@ -28,7 +27,7 @@ services:
       # - NATS_TLS_CERT=/app/certs/server.crt
       # - NATS_TLS_KEY=/app/certs/server.key
     healthcheck:
-      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8222/varz" ]
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -44,7 +44,7 @@ func GetSSEWithQuery(baseURL string, key, value string) string {
 // Parameters are URL-encoded and sorted by key for deterministic output.
 func GetSSEWithParams(baseURL string, params map[string]string) string {
 	if len(params) == 0 {
-		return ds.GetSSE(baseURL)
+		return fmt.Sprintf("@get('%s')", baseURL)
 	}
 
 	// Sort keys for deterministic output

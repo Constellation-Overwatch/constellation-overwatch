@@ -7,7 +7,8 @@ import (
 
 // MapPanel is the main container for the map view
 // It reuses the same KV watch endpoint as overwatch to get entity position data
-templ MapPanel() {
+// mtxConfig contains WebRTC server URL and optional auth for video streaming
+templ MapPanel(mtxConfig common.MediaMTXConfig) {
 	<div id="map-panel"
 		class="panel"
 		data-signals="{
@@ -70,7 +71,7 @@ templ MapPanel() {
 		</div>
 	</div>
 	@MapLibreScript()
-	@common.C4EntityCardScript()
+	@common.C4EntityCardScript(mtxConfig)
 }
 
 // MapControls provides the control buttons for the map

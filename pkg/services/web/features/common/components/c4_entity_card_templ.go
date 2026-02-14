@@ -12,7 +12,33 @@ import (
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/icons"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"net/url"
 )
+
+// MediaMTXConfig holds MediaMTX connection settings for templates
+type MediaMTXConfig struct {
+	WebRTCURL  string // WebRTC player endpoint (e.g., http://localhost:8889)
+	APIURL     string // API endpoint for stream management (e.g., http://localhost:9997)
+	ViewerUser string // Optional viewer username for auth
+	ViewerPass string // Optional viewer password for auth
+}
+
+// BuildWebRTCURL constructs the full WebRTC URL with path and optional auth
+func (c MediaMTXConfig) BuildWebRTCURL(stationID, entityID string) string {
+	path := "/" + stationID + "/" + entityID
+	if c.ViewerUser != "" && c.ViewerPass != "" {
+		return c.WebRTCURL + path + "?user=" + url.QueryEscape(c.ViewerUser) + "&pass=" + url.QueryEscape(c.ViewerPass)
+	}
+	return c.WebRTCURL + path
+}
+
+// AuthQueryString returns the auth query string if credentials are set
+func (c MediaMTXConfig) AuthQueryString() string {
+	if c.ViewerUser != "" && c.ViewerPass != "" {
+		return "?user=" + url.QueryEscape(c.ViewerUser) + "&pass=" + url.QueryEscape(c.ViewerPass)
+	}
+	return ""
+}
 
 // C4EntityCard is a robust entity component that combines telemetry and video
 // It can optionally show a detailed view with expanded telemetry and video player
@@ -49,7 +75,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("c4-entity-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 12, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 38, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -75,7 +101,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 14, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 40, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -88,7 +114,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 15, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 41, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -101,7 +127,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggleEntityDetail('%s')", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 18, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 44, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -115,7 +141,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 23, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 49, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -125,7 +151,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 25, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 51, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -169,7 +195,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(shared.GetEntityTypeDisplayName(entity.EntityType))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 32, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 58, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -187,7 +213,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.6f", entity.Position.Global.Latitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 42, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 68, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -200,7 +226,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.6f", entity.Position.Global.Longitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 46, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 72, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -213,7 +239,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.0fm", entity.Position.Global.AltitudeMSL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 50, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 76, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -237,7 +263,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			}
 		}()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 57, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 83, Col: 155}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -250,7 +276,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("video-section-" + entity.EntityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 60, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 86, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -268,7 +294,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(entity.VehicleStatus.Mode)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 70, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 96, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -309,7 +335,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				}
 			}())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 75, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 101, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -332,7 +358,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f m/s", entity.VFR.Groundspeed))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 87, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 113, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -345,7 +371,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d°", entity.VFR.Heading))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 91, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 117, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -390,7 +416,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d%%", entity.Power.BatteryRemain))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 103, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 129, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -403,7 +429,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1fV", entity.Power.Voltage))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 108, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 134, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -431,7 +457,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d active", entity.Analytics.ActiveObjectsCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 120, Col: 100}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 146, Col: 100}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 				if templ_7745c5c3_Err != nil {
@@ -472,7 +498,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(obj.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 127, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 153, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -507,7 +533,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(obj.ThreatLevel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 128, Col: 86}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 154, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -520,7 +546,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.0f%%", obj.AvgConfidence*100))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 133, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 159, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -533,7 +559,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var36 string
 				templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", obj.FrameCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 137, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 163, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 				if templ_7745c5c3_Err != nil {
@@ -566,7 +592,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 						var templ_7745c5c3_Var37 string
 						templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(indicator)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 146, Col: 50}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 172, Col: 50}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 						if templ_7745c5c3_Err != nil {
@@ -604,7 +630,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TotalUniqueObjects))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 162, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 188, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -617,7 +643,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.TrackedObjectsCount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 166, Col: 94}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 192, Col: 94}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -635,7 +661,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", entity.Analytics.ActiveThreatCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 171, Col: 93}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 197, Col: 93}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -663,7 +689,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 179, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 205, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -676,7 +702,7 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", count))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 179, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 205, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 					if templ_7745c5c3_Err != nil {
@@ -706,8 +732,9 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 }
 
 // C4VideoPlayer is a standalone video component that gets appended once (not morphed)
-// This separation prevents MJPEG stream connection duplication during card morphs
-func C4VideoPlayer(entityID string) templ.Component {
+// Uses WebRTC via MediaMTX for low-latency video streaming
+// Path structure: /{station_id}/{entity_id} with optional auth
+func C4VideoPlayer(stationID string, entityID string, mtxConfig MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -735,52 +762,65 @@ func C4VideoPlayer(entityID string) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 192, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 219, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\"><div class=\"no-signal-overlay\"><span>No Video Signal</span></div><img class=\"video-mjpeg\" src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "\" data-station-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var45 string
-		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entityID)
+		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(stationID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 198, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 219, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "\" alt=\"Video stream\"></div><div class=\"video-controls\"><span class=\"fps-counter\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "\" style=\"aspect-ratio: 16/9;\"><div class=\"no-signal-overlay\"><span>No Video Signal</span></div><!-- WebRTC iframe - MediaMTX serves the player at /{station_id}/{entity_id} with optional auth --><iframe class=\"video-webrtc\" src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var46 string
-		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs("c4-fps-" + entityID)
+		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.BuildWebRTCURL(stationID, entityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 202, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 226, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\">-- fps</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\" allow=\"autoplay; fullscreen\" style=\"width: 100%; height: 100%; border: none;\"></iframe></div><div class=\"video-controls\"><span class=\"stream-status\" style=\"color: #0f0; font-size: 11px;\">WebRTC</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 203, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 232, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" onclick=\"openVideoFullscreen(this.dataset.entityId)\">Fullscreen</button></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" data-station-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var48 string
+		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(stationID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 232, Col: 88}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "\" onclick=\"openVideoFullscreen(this.dataset.stationId, this.dataset.entityId)\">Fullscreen</button></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -789,7 +829,8 @@ func C4VideoPlayer(entityID string) templ.Component {
 }
 
 // C4EntityCardScript contains the JS logic for the card interaction and video
-func C4EntityCardScript() templ.Component {
+// Uses WebRTC via MediaMTX for video streaming
+func C4EntityCardScript(mtxConfig MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -805,12 +846,38 @@ func C4EntityCardScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var48 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var48 == nil {
-			templ_7745c5c3_Var48 = templ.NopComponent
+		templ_7745c5c3_Var49 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var49 == nil {
+			templ_7745c5c3_Var49 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<script>\n\t\t// FPS tracking for video streams\n\t\tconst c4FpsTrackers = {};\n\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c4-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Initialize FPS tracking for this card's video\n\t\t\t\tinitFpsTracker(card, entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t\t// Clean up FPS tracker\n\t\t\t\tdelete c4FpsTrackers[entityId];\n\t\t\t\tconst fpsEl = document.getElementById('c4-fps-' + entityId);\n\t\t\t\tif (fpsEl) fpsEl.textContent = '-- fps';\n\t\t\t}\n\t\t}\n\n\t\tfunction initFpsTracker(card, entityId) {\n\t\t\tconst mjpegImg = card.querySelector('.video-mjpeg');\n\t\t\tconst overlay = card.querySelector('.no-signal-overlay');\n\t\t\tconst fpsEl = document.getElementById('c4-fps-' + entityId);\n\n\t\t\tif (!mjpegImg) return;\n\n\t\t\t// Initialize FPS tracker\n\t\t\tc4FpsTrackers[entityId] = {\n\t\t\t\tframeCount: 0,\n\t\t\t\tlastTime: performance.now()\n\t\t\t};\n\n\t\t\t// Set up handlers for FPS tracking\n\t\t\tmjpegImg.onload = function() {\n\t\t\t\tif (overlay) overlay.style.display = 'none';\n\n\t\t\t\tconst tracker = c4FpsTrackers[entityId];\n\t\t\t\tif (!tracker) return;\n\n\t\t\t\ttracker.frameCount++;\n\t\t\t\tconst now = performance.now();\n\t\t\t\tif (now - tracker.lastTime >= 1000) {\n\t\t\t\t\tconst fps = Math.round(tracker.frameCount * 1000 / (now - tracker.lastTime));\n\t\t\t\t\tif (fpsEl) fpsEl.textContent = fps + ' fps';\n\t\t\t\t\ttracker.frameCount = 0;\n\t\t\t\t\ttracker.lastTime = now;\n\t\t\t\t}\n\t\t\t};\n\n\t\t\tmjpegImg.onerror = function() {\n\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t};\n\t\t}\n\n\t\t// Initialize FPS tracking for any cards that start in detailed mode\n\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\tdocument.querySelectorAll('.c4-entity-card.detailed').forEach(function(card) {\n\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\tif (entityId) initFpsTracker(card, entityId);\n\t\t\t});\n\t\t});\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Find the existing video element for this entity\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tconst existingImg = card ? card.querySelector('.video-mjpeg') : null;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\t\t\tmodal.innerHTML = `\n\t\t\t\t<div class=\"fullscreen-header\">\n\t\t\t\t\t<span class=\"entity-label\">${entityId}</span>\n\t\t\t\t\t<button class=\"close-btn\" onclick=\"closeVideoFullscreen()\">Close (ESC)</button>\n\t\t\t\t</div>\n\t\t\t\t<div class=\"fullscreen-video\">\n\t\t\t\t</div>\n\t\t\t`;\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// Clone the existing img element to reuse the stream, or create new one\n\t\t\tconst fullscreenContainer = modal.querySelector('.fullscreen-video');\n\t\t\tif (existingImg && existingImg.src) {\n\t\t\t\tconst clonedImg = existingImg.cloneNode(true);\n\t\t\t\tclonedImg.style.maxWidth = '100%';\n\t\t\t\tclonedImg.style.maxHeight = 'calc(100vh - 60px)';\n\t\t\t\tclonedImg.style.objectFit = 'contain';\n\t\t\t\tfullscreenContainer.appendChild(clonedImg);\n\t\t\t} else {\n\t\t\t\t// Fallback: create new stream connection\n\t\t\t\tconst img = document.createElement('img');\n\t\t\t\timg.src = '/api/v1/video/stream/' + entityId;\n\t\t\t\timg.alt = 'Video stream';\n\t\t\t\tfullscreenContainer.appendChild(img);\n\t\t\t}\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\t</script><style>\n\t\t/* Video container styles */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t\tcolor: #666;\n\t\t\ttext-align: center;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t.video-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\ttransition: background 0.2s ease;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t\tposition: relative;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\n\t\t.fullscreen-loading {\n\t\t\tcolor: #666;\n\t\t\tfont-size: 16px;\n\t\t\tposition: absolute;\n\t\t}\n\n\t\t/* Entity Type Styling */\n\t\t.entity-type {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 4px;\n\t\t\tfont-size: 11px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tbackground: rgba(255,255,255,0.1);\n\t\t}\n\n\t\t.entity-type .type-icon {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.entity-type .type-icon svg {\n\t\t\twidth: 14px;\n\t\t\theight: 14px;\n\t\t}\n\n\t\t/* Aircraft types - cyan */\n\t\t.entity-type.type-aircraft {\n\t\t\tbackground: rgba(0, 200, 255, 0.15);\n\t\t\tcolor: #0cf;\n\t\t}\n\n\t\t/* Ground vehicle types - orange */\n\t\t.entity-type.type-ground {\n\t\t\tbackground: rgba(255, 165, 0, 0.15);\n\t\t\tcolor: #fa0;\n\t\t}\n\n\t\t/* Marine types - blue */\n\t\t.entity-type.type-marine {\n\t\t\tbackground: rgba(0, 100, 255, 0.15);\n\t\t\tcolor: #48f;\n\t\t}\n\n\t\t/* System types - green */\n\t\t.entity-type.type-system {\n\t\t\tbackground: rgba(0, 255, 100, 0.15);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t/* Geographic types - purple */\n\t\t.entity-type.type-geo {\n\t\t\tbackground: rgba(180, 100, 255, 0.15);\n\t\t\tcolor: #b4f;\n\t\t}\n\n\t\t/* Unknown types - gray */\n\t\t.entity-type.type-unknown {\n\t\t\tbackground: rgba(128, 128, 128, 0.15);\n\t\t\tcolor: #888;\n\t\t}\n\n\t\t/* Object Detections Section */\n\t\t.detections-section {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(255, 100, 0, 0.05);\n\t\t\tborder: 1px solid rgba(255, 100, 0, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.detections-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 10px;\n\t\t}\n\n\t\t.detections-header h5 {\n\t\t\tmargin: 0;\n\t\t\tcolor: #fa0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.detection-count {\n\t\t\tfont-size: 11px;\n\t\t\tcolor: #888;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tpadding: 2px 8px;\n\t\t\tborder-radius: 10px;\n\t\t}\n\n\t\t.tracked-objects-list {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 8px;\n\t\t\tmax-height: 200px;\n\t\t\toverflow-y: auto;\n\t\t}\n\n\t\t.tracked-object {\n\t\t\tbackground: rgba(0, 0, 0, 0.3);\n\t\t\tborder-radius: 4px;\n\t\t\tpadding: 8px 10px;\n\t\t\tborder-left: 3px solid #666;\n\t\t}\n\n\t\t.tracked-object.threat-high {\n\t\t\tborder-left-color: #f44;\n\t\t\tbackground: rgba(255, 68, 68, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-medium {\n\t\t\tborder-left-color: #fa0;\n\t\t\tbackground: rgba(255, 170, 0, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-low {\n\t\t\tborder-left-color: #0f8;\n\t\t\tbackground: rgba(0, 255, 136, 0.05);\n\t\t}\n\n\t\t.tracked-object.inactive {\n\t\t\topacity: 0.5;\n\t\t}\n\n\t\t.object-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 6px;\n\t\t}\n\n\t\t.object-label {\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.threat-badge {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-weight: 600;\n\t\t}\n\n\t\t.threat-badge.threat-high {\n\t\t\tbackground: rgba(255, 68, 68, 0.3);\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.threat-badge.threat-medium {\n\t\t\tbackground: rgba(255, 170, 0, 0.3);\n\t\t\tcolor: #fb0;\n\t\t}\n\n\t\t.threat-badge.threat-low {\n\t\t\tbackground: rgba(0, 255, 136, 0.2);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t.object-stats {\n\t\t\tdisplay: flex;\n\t\t\tgap: 12px;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.object-stats .stat {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tfont-size: 10px;\n\t\t}\n\n\t\t.object-stats .stat-label {\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-size: 8px;\n\t\t}\n\n\t\t.object-stats .stat-value {\n\t\t\tcolor: #aaa;\n\t\t\tfont-weight: 500;\n\t\t}\n\n\t\t.active-indicator {\n\t\t\twidth: 6px;\n\t\t\theight: 6px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t\tanimation: pulse 1.5s infinite;\n\t\t\tmargin-left: auto;\n\t\t}\n\n\t\t@keyframes pulse {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.4; }\n\t\t}\n\n\t\t.suspicious-indicators {\n\t\t\tmargin-top: 6px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.indicator-tag {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tbackground: rgba(255, 68, 68, 0.2);\n\t\t\tcolor: #f88;\n\t\t\tborder-radius: 3px;\n\t\t}\n\n\t\t/* Analytics Summary */\n\t\t.analytics-summary {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(0, 200, 255, 0.05);\n\t\t\tborder: 1px solid rgba(0, 200, 255, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.analytics-summary h5 {\n\t\t\tmargin: 0 0 10px 0;\n\t\t\tcolor: #0cf;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.analytics-grid {\n\t\t\tdisplay: grid;\n\t\t\tgrid-template-columns: repeat(3, 1fr);\n\t\t\tgap: 10px;\n\t\t}\n\n\t\t.analytics-stat {\n\t\t\ttext-align: center;\n\t\t\tpadding: 8px;\n\t\t\tbackground: rgba(0, 0, 0, 0.2);\n\t\t\tborder-radius: 4px;\n\t\t}\n\n\t\t.analytics-stat.threat {\n\t\t\tbackground: rgba(255, 68, 68, 0.15);\n\t\t}\n\n\t\t.analytics-value {\n\t\t\tdisplay: block;\n\t\t\tfont-size: 18px;\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t}\n\n\t\t.analytics-stat.threat .analytics-value {\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.analytics-label {\n\t\t\tfont-size: 9px;\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t}\n\n\t\t.label-distribution {\n\t\t\tmargin-top: 10px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.label-chip {\n\t\t\tfont-size: 10px;\n\t\t\tpadding: 3px 8px;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tcolor: #aaa;\n\t\t\tborder-radius: 10px;\n\t\t}\n\t</style>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<!-- Store MediaMTX config for JavaScript access --><script data-mediamtx-url=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var50 string
+		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.WebRTCURL)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 242, Col: 48}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" data-mediamtx-auth=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var51 string
+		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.AuthQueryString())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 242, Col: 99}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\">\n\t\t// Store MediaMTX URL and auth globally for video functions\n\t\twindow.MEDIAMTX_WEBRTC_URL = document.currentScript.dataset.mediamtxUrl || 'http://localhost:8889';\n\t\twindow.MEDIAMTX_AUTH = document.currentScript.dataset.mediamtxAuth || '';\n\t</script><script>\n\t\t// WebRTC video management for C4 entity cards\n\t\t// MediaMTX handles the actual WebRTC connection - we just manage the iframes\n\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c4-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Initialize WebRTC video for this card\n\t\t\t\tinitWebRTCVideo(card, entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t}\n\t\t}\n\n\t\tfunction initWebRTCVideo(card, entityId) {\n\t\t\tconst iframe = card.querySelector('.video-webrtc');\n\t\t\tconst overlay = card.querySelector('.no-signal-overlay');\n\n\t\t\tif (!iframe) return;\n\n\t\t\t// Hide overlay when iframe loads successfully\n\t\t\tiframe.onload = function() {\n\t\t\t\tif (overlay) overlay.style.display = 'none';\n\t\t\t};\n\t\t\tiframe.onerror = function() {\n\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t};\n\t\t}\n\n\t\t// Initialize WebRTC video for any cards that start in detailed mode\n\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\tdocument.querySelectorAll('.c4-entity-card.detailed').forEach(function(card) {\n\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\tif (entityId) initWebRTCVideo(card, entityId);\n\t\t\t});\n\t\t});\n\n\t\tfunction openVideoFullscreen(stationId, entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Get MediaMTX URL and auth from global or default\n\t\t\tconst mediaMTXURL = window.MEDIAMTX_WEBRTC_URL || 'http://localhost:8889';\n\t\t\tconst authQuery = window.MEDIAMTX_AUTH || '';\n\n\t\t\t// Build stream path: /{station_id}/{entity_id}\n\t\t\tconst streamPath = stationId ? stationId + '/' + entityId : entityId;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal with WebRTC iframe using safe DOM methods\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\n\t\t\t// Create header\n\t\t\tconst header = document.createElement('div');\n\t\t\theader.className = 'fullscreen-header';\n\n\t\t\tconst entityLabel = document.createElement('span');\n\t\t\tentityLabel.className = 'entity-label';\n\t\t\tentityLabel.textContent = stationId ? stationId + ' / ' + entityId : entityId;\n\n\t\t\tconst streamType = document.createElement('span');\n\t\t\tstreamType.className = 'stream-type';\n\t\t\tstreamType.style.cssText = 'color: #0f0; font-size: 12px; margin-left: 10px;';\n\t\t\tstreamType.textContent = 'WebRTC';\n\n\t\t\tconst closeBtn = document.createElement('button');\n\t\t\tcloseBtn.className = 'close-btn';\n\t\t\tcloseBtn.textContent = 'Close (ESC)';\n\t\t\tcloseBtn.onclick = closeVideoFullscreen;\n\n\t\t\theader.appendChild(entityLabel);\n\t\t\theader.appendChild(streamType);\n\t\t\theader.appendChild(closeBtn);\n\n\t\t\t// Create video container with WebRTC iframe\n\t\t\tconst videoContainer = document.createElement('div');\n\t\t\tvideoContainer.className = 'fullscreen-video';\n\n\t\t\tconst iframe = document.createElement('iframe');\n\t\t\tiframe.src = mediaMTXURL + '/' + streamPath + authQuery;\n\t\t\tiframe.allow = 'autoplay; fullscreen';\n\t\t\tiframe.style.cssText = 'width: 100%; height: 100%; border: none;';\n\n\t\t\tvideoContainer.appendChild(iframe);\n\t\t\tmodal.appendChild(header);\n\t\t\tmodal.appendChild(videoContainer);\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\t</script><style>\n\t\t/* Video container styles */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t\tcolor: #666;\n\t\t\ttext-align: center;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t.video-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\ttransition: background 0.2s ease;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t\tposition: relative;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\n\t\t.fullscreen-loading {\n\t\t\tcolor: #666;\n\t\t\tfont-size: 16px;\n\t\t\tposition: absolute;\n\t\t}\n\n\t\t/* Entity Type Styling */\n\t\t.entity-type {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 4px;\n\t\t\tfont-size: 11px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tbackground: rgba(255,255,255,0.1);\n\t\t}\n\n\t\t.entity-type .type-icon {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.entity-type .type-icon svg {\n\t\t\twidth: 14px;\n\t\t\theight: 14px;\n\t\t}\n\n\t\t/* Aircraft types - cyan */\n\t\t.entity-type.type-aircraft {\n\t\t\tbackground: rgba(0, 200, 255, 0.15);\n\t\t\tcolor: #0cf;\n\t\t}\n\n\t\t/* Ground vehicle types - orange */\n\t\t.entity-type.type-ground {\n\t\t\tbackground: rgba(255, 165, 0, 0.15);\n\t\t\tcolor: #fa0;\n\t\t}\n\n\t\t/* Marine types - blue */\n\t\t.entity-type.type-marine {\n\t\t\tbackground: rgba(0, 100, 255, 0.15);\n\t\t\tcolor: #48f;\n\t\t}\n\n\t\t/* System types - green */\n\t\t.entity-type.type-system {\n\t\t\tbackground: rgba(0, 255, 100, 0.15);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t/* Geographic types - purple */\n\t\t.entity-type.type-geo {\n\t\t\tbackground: rgba(180, 100, 255, 0.15);\n\t\t\tcolor: #b4f;\n\t\t}\n\n\t\t/* Unknown types - gray */\n\t\t.entity-type.type-unknown {\n\t\t\tbackground: rgba(128, 128, 128, 0.15);\n\t\t\tcolor: #888;\n\t\t}\n\n\t\t/* Object Detections Section */\n\t\t.detections-section {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(255, 100, 0, 0.05);\n\t\t\tborder: 1px solid rgba(255, 100, 0, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.detections-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 10px;\n\t\t}\n\n\t\t.detections-header h5 {\n\t\t\tmargin: 0;\n\t\t\tcolor: #fa0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.detection-count {\n\t\t\tfont-size: 11px;\n\t\t\tcolor: #888;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tpadding: 2px 8px;\n\t\t\tborder-radius: 10px;\n\t\t}\n\n\t\t.tracked-objects-list {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tgap: 8px;\n\t\t\tmax-height: 200px;\n\t\t\toverflow-y: auto;\n\t\t}\n\n\t\t.tracked-object {\n\t\t\tbackground: rgba(0, 0, 0, 0.3);\n\t\t\tborder-radius: 4px;\n\t\t\tpadding: 8px 10px;\n\t\t\tborder-left: 3px solid #666;\n\t\t}\n\n\t\t.tracked-object.threat-high {\n\t\t\tborder-left-color: #f44;\n\t\t\tbackground: rgba(255, 68, 68, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-medium {\n\t\t\tborder-left-color: #fa0;\n\t\t\tbackground: rgba(255, 170, 0, 0.1);\n\t\t}\n\n\t\t.tracked-object.threat-low {\n\t\t\tborder-left-color: #0f8;\n\t\t\tbackground: rgba(0, 255, 136, 0.05);\n\t\t}\n\n\t\t.tracked-object.inactive {\n\t\t\topacity: 0.5;\n\t\t}\n\n\t\t.object-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tmargin-bottom: 6px;\n\t\t}\n\n\t\t.object-label {\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.threat-badge {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-weight: 600;\n\t\t}\n\n\t\t.threat-badge.threat-high {\n\t\t\tbackground: rgba(255, 68, 68, 0.3);\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.threat-badge.threat-medium {\n\t\t\tbackground: rgba(255, 170, 0, 0.3);\n\t\t\tcolor: #fb0;\n\t\t}\n\n\t\t.threat-badge.threat-low {\n\t\t\tbackground: rgba(0, 255, 136, 0.2);\n\t\t\tcolor: #0f8;\n\t\t}\n\n\t\t.object-stats {\n\t\t\tdisplay: flex;\n\t\t\tgap: 12px;\n\t\t\talign-items: center;\n\t\t}\n\n\t\t.object-stats .stat {\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t\tfont-size: 10px;\n\t\t}\n\n\t\t.object-stats .stat-label {\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t\tfont-size: 8px;\n\t\t}\n\n\t\t.object-stats .stat-value {\n\t\t\tcolor: #aaa;\n\t\t\tfont-weight: 500;\n\t\t}\n\n\t\t.active-indicator {\n\t\t\twidth: 6px;\n\t\t\theight: 6px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t\tanimation: pulse 1.5s infinite;\n\t\t\tmargin-left: auto;\n\t\t}\n\n\t\t@keyframes pulse {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.4; }\n\t\t}\n\n\t\t.suspicious-indicators {\n\t\t\tmargin-top: 6px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.indicator-tag {\n\t\t\tfont-size: 9px;\n\t\t\tpadding: 2px 6px;\n\t\t\tbackground: rgba(255, 68, 68, 0.2);\n\t\t\tcolor: #f88;\n\t\t\tborder-radius: 3px;\n\t\t}\n\n\t\t/* Analytics Summary */\n\t\t.analytics-summary {\n\t\t\tmargin-top: 15px;\n\t\t\tpadding: 12px;\n\t\t\tbackground: rgba(0, 200, 255, 0.05);\n\t\t\tborder: 1px solid rgba(0, 200, 255, 0.2);\n\t\t\tborder-radius: 6px;\n\t\t}\n\n\t\t.analytics-summary h5 {\n\t\t\tmargin: 0 0 10px 0;\n\t\t\tcolor: #0cf;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.analytics-grid {\n\t\t\tdisplay: grid;\n\t\t\tgrid-template-columns: repeat(3, 1fr);\n\t\t\tgap: 10px;\n\t\t}\n\n\t\t.analytics-stat {\n\t\t\ttext-align: center;\n\t\t\tpadding: 8px;\n\t\t\tbackground: rgba(0, 0, 0, 0.2);\n\t\t\tborder-radius: 4px;\n\t\t}\n\n\t\t.analytics-stat.threat {\n\t\t\tbackground: rgba(255, 68, 68, 0.15);\n\t\t}\n\n\t\t.analytics-value {\n\t\t\tdisplay: block;\n\t\t\tfont-size: 18px;\n\t\t\tfont-weight: 600;\n\t\t\tcolor: #fff;\n\t\t}\n\n\t\t.analytics-stat.threat .analytics-value {\n\t\t\tcolor: #f66;\n\t\t}\n\n\t\t.analytics-label {\n\t\t\tfont-size: 9px;\n\t\t\tcolor: #666;\n\t\t\ttext-transform: uppercase;\n\t\t}\n\n\t\t.label-distribution {\n\t\t\tmargin-top: 10px;\n\t\t\tdisplay: flex;\n\t\t\tflex-wrap: wrap;\n\t\t\tgap: 4px;\n\t\t}\n\n\t\t.label-chip {\n\t\t\tfont-size: 10px;\n\t\t\tpadding: 3px 8px;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tcolor: #aaa;\n\t\t\tborder-radius: 10px;\n\t\t}\n\t</style>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

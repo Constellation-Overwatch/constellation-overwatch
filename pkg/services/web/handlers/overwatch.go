@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,24 @@ import (
 
 	"github.com/nats-io/nats.go"
 )
+
+// getMediaMTXConfigOverwatch returns MediaMTX configuration from environment
+func getMediaMTXConfigOverwatch() common_components.MediaMTXConfig {
+	webrtcURL := os.Getenv("MEDIAMTX_WEBRTC_URL")
+	if webrtcURL == "" {
+		webrtcURL = "http://localhost:8889"
+	}
+	apiURL := os.Getenv("MEDIAMTX_API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:9997"
+	}
+	return common_components.MediaMTXConfig{
+		WebRTCURL:  webrtcURL,
+		APIURL:     apiURL,
+		ViewerUser: os.Getenv("MEDIAMTX_VIEWER_USER"),
+		ViewerPass: os.Getenv("MEDIAMTX_VIEWER_PASS"),
+	}
+}
 
 type OverwatchHandler struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
@@ -523,7 +542,9 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 		// This ensures video is only added once and never morphed, preventing connection duplication
 		if patchMode == datastar.ElementPatchModeAppend && viewMode == "map" {
 			var videoHTML strings.Builder
-			if err := common_components.C4VideoPlayer(entityID).Render(context.Background(), &videoHTML); err == nil {
+			mtxConfig := getMediaMTXConfigOverwatch()
+			// Pass stationID (OrgID), entityID, and config for path: /{station_id}/{entity_id} with optional auth
+			if err := common_components.C4VideoPlayer(entityState.OrgID, entityID, mtxConfig).Render(context.Background(), &videoHTML); err == nil {
 				videoSelector := fmt.Sprintf("#video-section-%s", entityID)
 				if err := sse.PatchElements(videoHTML.String(), datastar.WithSelector(videoSelector), datastar.WithMode(datastar.ElementPatchModeInner)); err != nil {
 					logger.Debugw("Failed to append video player", "entity_id", entityID, "error", err)

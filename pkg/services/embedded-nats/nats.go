@@ -176,16 +176,17 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		NoSigs:  true, // Disable built-in signal handlers
 	}
 
-	// Enable WebSocket for browser-based video streaming
-	// NoTLS allows development without certificates
-	// Empty AllowedOrigins = allow all (when ALLOWED_ORIGINS=* or unset)
-	opts.Websocket = server.WebsocketOpts{
-		Host:             en.config.Host,
-		Port:             en.config.WSPort,
-		NoTLS:            !en.config.EnableTLS,
-		SameOrigin:       false,
-		AllowedOrigins:   en.config.WSAllowedOrigins,
-		HandshakeTimeout: 10 * time.Second,
+	// Enable WebSocket only if WSPort > 0
+	// Set NATS_WS_PORT=0 to disable (no longer needed since video uses MediaMTX WebRTC)
+	if en.config.WSPort > 0 {
+		opts.Websocket = server.WebsocketOpts{
+			Host:             en.config.Host,
+			Port:             en.config.WSPort,
+			NoTLS:            !en.config.EnableTLS,
+			SameOrigin:       false,
+			AllowedOrigins:   en.config.WSAllowedOrigins,
+			HandshakeTimeout: 10 * time.Second,
+		}
 	}
 
 	// Configure Authentication

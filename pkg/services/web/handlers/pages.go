@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	common_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	docs_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/docs/pages"
 	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
 	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
@@ -27,6 +28,24 @@ func NewPageHandler(orgSvc *services.OrganizationService, entitySvc *services.En
 	return &PageHandler{
 		orgSvc:    orgSvc,
 		entitySvc: entitySvc,
+	}
+}
+
+// getMediaMTXConfigForPages returns MediaMTX configuration from environment
+func getMediaMTXConfigForPages() common_components.MediaMTXConfig {
+	webrtcURL := os.Getenv("MEDIAMTX_WEBRTC_URL")
+	if webrtcURL == "" {
+		webrtcURL = "http://localhost:8889"
+	}
+	apiURL := os.Getenv("MEDIAMTX_API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:9997"
+	}
+	return common_components.MediaMTXConfig{
+		WebRTCURL:  webrtcURL,
+		APIURL:     apiURL,
+		ViewerUser: os.Getenv("MEDIAMTX_VIEWER_USER"),
+		ViewerPass: os.Getenv("MEDIAMTX_VIEWER_PASS"),
 	}
 }
 
@@ -217,13 +236,13 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		entityIDs = append(entityIDs, entity.EntityID)
 	}
 
-	// Get auth token for WebSocket connection
-	natsAuthToken := os.Getenv("OVERWATCH_TOKEN")
+	// Get MediaMTX config for video streaming
+	mtxConfig := getMediaMTXConfigForPages()
 
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := video_pages.VideoPage(entityIDs, natsAuthToken)
+		component := video_pages.VideoPage(entityIDs, mtxConfig)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -233,7 +252,7 @@ func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := video_pages.VideoPage(entityIDs, natsAuthToken)
+	component := video_pages.VideoPage(entityIDs, mtxConfig)
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render video page: %v", err)
 	}
@@ -247,10 +266,13 @@ func (h *PageHandler) HandleDocsPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
+	// Get MediaMTX config for video streaming
+	mtxConfig := getMediaMTXConfigForPages()
+
 	// If this is a Datastar request, return SSE format
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewServerSentEventGenerator(w, r)
-		component := map_pages.MapPage()
+		component := map_pages.MapPage(mtxConfig)
 		err := sse.PatchComponent(r.Context(), component,
 			datastar.WithSelector("body"),
 			datastar.WithMode(datastar.ElementPatchModeOuter))
@@ -260,7 +282,7 @@ func (h *PageHandler) HandleMapPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := map_pages.MapPage()
+	component := map_pages.MapPage(mtxConfig)
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render map page: %v", err)
 	}

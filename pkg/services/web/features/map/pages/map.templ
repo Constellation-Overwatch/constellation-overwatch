@@ -6,11 +6,11 @@ import (
 	mapcomponents "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/components"
 )
 
-templ MapPage() {
+templ MapPage(mtxConfig components.MediaMTXConfig) {
 	@layouts.BaseWithStyles("Map", []string{"/static/css/map.css", "/static/css/overwatch.css"}) {
 		@components.Navigation("map") {
 			<div class="tab-content">
-				@mapcomponents.MapPanel()
+				@mapcomponents.MapPanel(mtxConfig)
 			</div>
 		}
 	}

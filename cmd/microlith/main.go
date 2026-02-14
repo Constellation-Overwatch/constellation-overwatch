@@ -347,7 +347,6 @@ ENDPOINTS:
     Web UI:     http://localhost:8080
     REST API:   http://localhost:8080/api/v1/
     NATS TCP:   nats://localhost:4222 (edge devices connect here with token auth)
-    NATS WS:    ws://localhost:8222 (browser WebSocket connections)
     Health:     http://localhost:8080/health
 
 DOCUMENTATION:

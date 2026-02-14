@@ -14,7 +14,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
-func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
+func VideoPage(entityIDs []string, mtxConfig components.MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -63,7 +63,7 @@ func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = VideoPanel(entityIDs).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = VideoPanel(entityIDs, mtxConfig).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -71,7 +71,7 @@ func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = VideoPageStyles().Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = VideoPageStyles(mtxConfig).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -91,7 +91,7 @@ func VideoPage(entityIDs []string, natsAuthToken string) templ.Component {
 	})
 }
 
-func VideoPanel(entityIDs []string) templ.Component {
+func VideoPanel(entityIDs []string, mtxConfig components.MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -112,7 +112,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"video-panel\" class=\"panel\" data-signals=\"{\n\t\t\tactiveStreams: [],\n\t\t\tstreamCount: 0,\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\tselectedEntity: ''\n\t\t}\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"stats\" data-show=\"$_isConnected\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$streamCount + ' active streams'\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls-bar\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"video-panel\" class=\"panel\" data-signals=\"{\n\t\t\tactiveStreams: [],\n\t\t\tstreamCount: 0,\n\t\t\tonlineCount: 0,\n\t\t\tofflineCount: 0,\n\t\t\tmediamtxOnline: false,\n\t\t\tlastUpdate: '',\n\t\t\t_isConnected: false,\n\t\t\tselectedEntity: ''\n\t\t}\" data-init=\"@get('/api/video/list')\"><div class=\"panel-header\"><h2>Video Feeds (WebRTC)</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> SSE Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"mediamtx-status\" data-show=\"$_isConnected && $mediamtxOnline\" style=\"margin-left: 10px;\"><span class=\"status-dot connected\" style=\"background: #0f8;\"></span> <span style=\"color: #0f8; font-size: 12px;\">MediaMTX Online</span></span> <span class=\"mediamtx-status\" data-show=\"$_isConnected && !$mediamtxOnline\" style=\"margin-left: 10px;\"><span class=\"status-dot disconnected\" style=\"background: #f55;\"></span> <span style=\"color: #f55; font-size: 12px;\">MediaMTX Offline</span></span> <span class=\"stats\" data-show=\"$_isConnected && $streamCount > 0\" style=\"margin-left: 15px; color: #0ff; font-size: 0.9em;\"><span data-text=\"$onlineCount + ' live'\"></span> <span data-show=\"$offlineCount > 0\" data-text=\"' / ' + $offlineCount + ' offline'\" style=\"color: #888;\"></span></span> <span class=\"last-update\" data-show=\"$lastUpdate != ''\" data-text=\"'Updated: ' + $lastUpdate\"></span></div></div><div class=\"video-controls-bar\" style=\"padding: 15px; border-bottom: 1px solid #333;\"><div style=\"display: flex; gap: 15px; align-items: center;\"><label style=\"color: #888;\">Select Entity:</label> <select data-model=\"selectedEntity\" style=\"background: #1a1a1a; border: 1px solid #444; color: #fff; padding: 8px 12px; border-radius: 4px; min-width: 200px;\"><option value=\"\">-- All Active Streams --</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -124,7 +124,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 56, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 68, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +137,7 @@ func VideoPanel(entityIDs []string) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(entityID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 56, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 68, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -148,188 +148,46 @@ func VideoPanel(entityIDs []string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</select> <button data-on-click=\"openVideoFullscreenByEntity($selectedEntity)\" data-show=\"$selectedEntity != ''\" style=\"background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;\">Open Fullscreen</button></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Single entity view (when entity selected) --><div data-show=\"$selectedEntity != ''\" style=\"display: flex; justify-content: center;\"><div class=\"video-card-large\" style=\"max-width: 1280px; width: 100%;\"><div class=\"video-card-header\" style=\"background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;\"><span style=\"color: #0ff; font-weight: bold;\" data-text=\"'Entity: ' + $selectedEntity\"></span> <span class=\"fps-counter\" style=\"color: #888; font-size: 12px;\">-- fps</span></div><div class=\"video-container-dynamic\" style=\"background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative;\"><img class=\"video-mjpeg-dynamic\" data-attr-src=\"$selectedEntity ? '/api/v1/video/stream/' + $selectedEntity : ''\" alt=\"Video stream\" style=\"width: 100%; height: auto; display: block;\"><div class=\"no-signal-overlay\" style=\"display: none;\"><span>No Video Signal</span></div></div></div></div><!-- Grid view for all active streams --><div data-show=\"$selectedEntity == ''\"><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for video frames on constellation.video.* subjects...</p></div></div></div></div></div><script>\n\t\tfunction openVideoFullscreenByEntity(entityId) {\n\t\t\tif (!entityId) return;\n\t\t\topenVideoFullscreen(entityId);\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</select> <button data-on-click=\"openVideoFullscreenByEntity($selectedEntity)\" data-show=\"$selectedEntity != ''\" style=\"background: #0a4; border: none; color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;\">Open Fullscreen</button></div></div><div id=\"video-content\" class=\"video-content\" style=\"padding: 20px;\"><!-- Single entity view (when entity selected) --><div data-show=\"$selectedEntity != ''\" style=\"display: flex; justify-content: center;\"><div class=\"video-card-large\" style=\"max-width: 1280px; width: 100%;\"><div class=\"video-card-header\" style=\"background: #1a1a1a; padding: 10px 15px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;\"><span style=\"color: #0ff; font-weight: bold;\" data-text=\"'Entity: ' + $selectedEntity\"></span> <span class=\"stream-status\" style=\"color: #0f0; font-size: 12px;\">WebRTC</span></div><div class=\"video-container-dynamic\" style=\"background: #000; border-radius: 0 0 4px 4px; overflow: hidden; position: relative; aspect-ratio: 16/9;\"><!-- WebRTC iframe - MediaMTX serves the player at /{entityID} with optional auth --><iframe class=\"video-webrtc-dynamic\" data-attr-src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		return nil
-	})
-}
-
-// VideoCard renders a simple video card with MJPEG stream
-func VideoCard(entity shared.EntityState) templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs("$selectedEntity ? '" + mtxConfig.WebRTCURL + "/' + $selectedEntity + '" + mtxConfig.AuthQueryString() + "' : ''")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 91, Col: 136}
 		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
 		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var7 == nil {
-			templ_7745c5c3_Var7 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" allow=\"autoplay; fullscreen\" style=\"width: 100%; height: 100%; border: none;\"></iframe><div class=\"no-signal-overlay\" style=\"display: none;\"><span>No Video Signal</span></div></div></div></div><!-- Grid view for all active streams --><div data-show=\"$selectedEntity == ''\"><div id=\"video-grid\" class=\"video-grid\" style=\"display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px;\"><!-- Populated by SSE from /api/video/list --><div class=\"empty-state\" style=\"color: #888; padding: 40px; text-align: center; grid-column: 1 / -1;\"><p>No active video streams detected.</p><p style=\"font-size: 12px; margin-top: 10px;\">Waiting for streams on MediaMTX server...</p></div></div></div></div></div><!-- Store MediaMTX config for JavaScript access --><script data-mediamtx-url=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("video-card-" + entity.EntityID)
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.WebRTCURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 109, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 113, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"video-card\" data-entity-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" data-mediamtx-auth=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.AuthQueryString())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 109, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 113, Col: 99}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><div class=\"video-card-header\"><span class=\"entity-name\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if entity.Name != "" {
-			var templ_7745c5c3_Var10 string
-			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 113, Col: 18}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else {
-			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 115, Col: 22}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span> <span class=\"entity-type\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 118, Col: 48}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span><div class=\"video-card-stats\"><span class=\"fps-counter\" id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("fps-" + entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 120, Col: 59}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">-- fps</span> ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var14 = []any{"status-dot", templ.KV("connected", entity.Status == "active"), templ.KV("disconnected", entity.Status != "active")}
-		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var14...)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var14).String())
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 1, Col: 0}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"></span></div></div><div class=\"video-container\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 124, Col: 63}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><div class=\"no-signal-overlay\"><span>No Video Signal</span></div><img class=\"video-mjpeg\" src=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs("/api/v1/video/stream/" + entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 130, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" alt=\"Video stream\"></div><div class=\"video-card-controls\"><span class=\"status-label\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var18 string
-		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Status)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 134, Col: 45}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var19 string
-		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 135, Col: 66}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" onclick=\"openVideoFullscreen(this.dataset.entityId)\">Fullscreen</button></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\">\n\t\twindow.MEDIAMTX_WEBRTC_URL = document.currentScript.dataset.mediamtxUrl;\n\t\twindow.MEDIAMTX_AUTH = document.currentScript.dataset.mediamtxAuth || '';\n\t\tfunction openVideoFullscreenByEntity(entityId) {\n\t\t\tif (!entityId) return;\n\t\t\topenVideoFullscreen(entityId);\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -337,8 +195,10 @@ func VideoCard(entity shared.EntityState) templ.Component {
 	})
 }
 
-// VideoPageStyles contains the styles and scripts for the video page
-func VideoPageStyles() templ.Component {
+// VideoCard renders a video card with WebRTC stream via MediaMTX
+// Path structure: /{station_id}/{entity_id} (OrgID serves as station_id)
+// Status can be: "live", "live (N viewers)", "offline"
+func VideoCard(entity shared.EntityState, mtxConfig components.MediaMTXConfig) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -354,12 +214,289 @@ func VideoPageStyles() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var20 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var20 == nil {
-			templ_7745c5c3_Var20 = templ.NopComponent
+		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var10 == nil {
+			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<script>\n\t\t// FPS tracking state per entity\n\t\tconst fpsTrackers = {};\n\n\t\tfunction initFpsTracker(entityId) {\n\t\t\tif (fpsTrackers[entityId]) {\n\t\t\t\t// Already tracking, just increment frame count\n\t\t\t\tfpsTrackers[entityId].frameCount++;\n\t\t\t\tconst now = performance.now();\n\t\t\t\tif (now - fpsTrackers[entityId].lastTime >= 1000) {\n\t\t\t\t\tconst fps = Math.round(fpsTrackers[entityId].frameCount * 1000 / (now - fpsTrackers[entityId].lastTime));\n\t\t\t\t\tconst fpsEl = document.getElementById('fps-' + entityId);\n\t\t\t\t\tif (fpsEl) fpsEl.textContent = fps + ' fps';\n\t\t\t\t\tfpsTrackers[entityId].frameCount = 0;\n\t\t\t\t\tfpsTrackers[entityId].lastTime = now;\n\t\t\t\t}\n\t\t\t\treturn;\n\t\t\t}\n\t\t\t// Initialize new tracker\n\t\t\tfpsTrackers[entityId] = {\n\t\t\t\tframeCount: 1,\n\t\t\t\tlastTime: performance.now()\n\t\t\t};\n\t\t}\n\n\t\t// Initialize FPS tracking for all video cards on page load\n\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\tdocument.querySelectorAll('.video-card').forEach(function(card) {\n\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\tconst img = card.querySelector('.video-mjpeg');\n\t\t\t\tconst overlay = card.querySelector('.no-signal-overlay');\n\n\t\t\t\tif (img) {\n\t\t\t\t\timg.onload = function() {\n\t\t\t\t\t\tif (overlay) overlay.style.display = 'none';\n\t\t\t\t\t\tinitFpsTracker(entityId);\n\t\t\t\t\t};\n\t\t\t\t\timg.onerror = function() {\n\t\t\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t\t\t};\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\n\t\tfunction openVideoFullscreen(entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Find the existing video element for this entity\n\t\t\tconst card = document.getElementById('video-card-' + entityId);\n\t\t\tconst existingImg = card ? card.querySelector('.video-mjpeg') : null;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\t\t\tmodal.innerHTML = `\n\t\t\t\t<div class=\"fullscreen-header\">\n\t\t\t\t\t<span class=\"entity-label\">${entityId}</span>\n\t\t\t\t\t<button class=\"close-btn\" onclick=\"closeVideoFullscreen()\">Close (ESC)</button>\n\t\t\t\t</div>\n\t\t\t\t<div class=\"fullscreen-video\">\n\t\t\t\t</div>\n\t\t\t`;\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// Clone the existing img element to reuse the stream, or create new one\n\t\t\tconst fullscreenContainer = modal.querySelector('.fullscreen-video');\n\t\t\tif (existingImg && existingImg.src) {\n\t\t\t\tconst clonedImg = existingImg.cloneNode(true);\n\t\t\t\tclonedImg.style.maxWidth = '100%';\n\t\t\t\tclonedImg.style.maxHeight = 'calc(100vh - 60px)';\n\t\t\t\tclonedImg.style.objectFit = 'contain';\n\t\t\t\tfullscreenContainer.appendChild(clonedImg);\n\t\t\t} else {\n\t\t\t\t// Fallback: create new stream connection\n\t\t\t\tconst img = document.createElement('img');\n\t\t\t\timg.src = '/api/v1/video/stream/' + entityId;\n\t\t\t\timg.alt = 'Video stream';\n\t\t\t\tfullscreenContainer.appendChild(img);\n\t\t\t}\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\n\t</script><style>\n\t\t/* Video Card Styles */\n\t\t.video-card {\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t\tborder: 1px solid #333;\n\t\t}\n\n\t\t.video-card-header {\n\t\t\tpadding: 10px 15px;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t\tbackground: #1a1a1a;\n\t\t}\n\n\t\t.video-card-header .entity-name {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.video-card-header .entity-type {\n\t\t\tcolor: #ff0;\n\t\t\tfont-size: 11px;\n\t\t\ttext-transform: uppercase;\n\t\t\tbackground: rgba(255, 255, 0, 0.1);\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tmargin-left: 8px;\n\t\t}\n\n\t\t.video-card-stats {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 8px;\n\t\t}\n\n\t\t.video-card-stats .fps-counter {\n\t\t\tcolor: #888;\n\t\t\tfont-size: 11px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.video-card-stats .status-dot {\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t}\n\n\t\t/* Video Container */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.video-container .no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t\tcolor: #666;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.video-container .no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t/* Video Controls */\n\t\t.video-card-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.video-card-controls .fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.video-card-controls .status-label {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t}\n\n\t\t.status-dot.disconnected {\n\t\t\tbackground: #f00;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen Modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\t</style>")
+		var templ_7745c5c3_Var11 = []any{"video-card", templ.KV("stream-offline", !isStreamLive(entity.Status))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var11...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var12 string
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("video-card-" + entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 127, Col: 42}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var11).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" data-entity-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var14 string
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 127, Col: 158}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" data-station-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var15 string
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(entity.OrgID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 127, Col: 191}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"><div class=\"video-card-header\"><span class=\"entity-name\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if entity.Name != "" {
+			var templ_7745c5c3_Var16 string
+			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 131, Col: 18}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			var templ_7745c5c3_Var17 string
+			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 133, Col: 22}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span> ")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if entity.EntityType != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<span class=\"entity-type\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 137, Col: 49}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</span>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<div class=\"video-card-stats\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var19 = []any{"stream-status", templ.KV("online", isStreamLive(entity.Status)), templ.KV("offline", !isStreamLive(entity.Status))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var19...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var20 string
+		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var19).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if isStreamLive(entity.Status) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "LIVE")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "OFFLINE")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span> <span class=\"viewer-count\"></span></div></div><div class=\"video-container\" data-entity-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 150, Col: 63}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\" data-station-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(entity.OrgID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 150, Col: 96}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" style=\"aspect-ratio: 16/9;\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var23 = []any{"no-signal-overlay", templ.KV("show", !isStreamLive(entity.Status))}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var23...)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var24 string
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var23).String())
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 1, Col: 0}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\"><span>No Video Signal</span></div><!-- WebRTC iframe - MediaMTX serves the player at /{station_id}/{entity_id} with optional auth --><iframe class=\"video-webrtc\" src=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(mtxConfig.BuildWebRTCURL(entity.OrgID, entity.EntityID))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 157, Col: 65}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" allow=\"autoplay; fullscreen\" style=\"width: 100%; height: 100%; border: none;\"></iframe></div><div class=\"video-card-controls\"><span class=\"status-label\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var26 string
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Status)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 162, Col: 45}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <button class=\"btn-fullscreen\" data-entity-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var27 string
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 163, Col: 66}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\" data-station-id=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var28 string
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(entity.OrgID)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 163, Col: 99}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\" onclick=\"openVideoFullscreen(this.dataset.stationId, this.dataset.entityId)\">Fullscreen</button></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// isStreamLive checks if the status indicates a live stream
+func isStreamLive(status string) bool {
+	return status == "live" || status == "active" || len(status) > 4 && status[:4] == "live"
+}
+
+// VideoPageStyles contains the styles and scripts for the video page
+func VideoPageStyles(mtxConfig components.MediaMTXConfig) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var29 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var29 == nil {
+			templ_7745c5c3_Var29 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<script>\n\t\t// WebRTC stream management\n\t\t// MediaMTX handles the actual WebRTC connection - we just manage the iframes\n\n\t\t// Initialize WebRTC video cards on page load\n\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\tdocument.querySelectorAll('.video-card').forEach(function(card) {\n\t\t\t\tconst entityId = card.dataset.entityId;\n\t\t\t\tconst iframe = card.querySelector('.video-webrtc');\n\t\t\t\tconst overlay = card.querySelector('.no-signal-overlay');\n\n\t\t\t\tif (iframe) {\n\t\t\t\t\t// Hide overlay when iframe loads successfully\n\t\t\t\t\tiframe.onload = function() {\n\t\t\t\t\t\tif (overlay) overlay.style.display = 'none';\n\t\t\t\t\t};\n\t\t\t\t\tiframe.onerror = function() {\n\t\t\t\t\t\tif (overlay) overlay.style.display = 'flex';\n\t\t\t\t\t};\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\n\t\tfunction openVideoFullscreen(stationId, entityId) {\n\t\t\tif (!entityId) {\n\t\t\t\tconsole.warn('[Video] No entityId provided for fullscreen');\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Get MediaMTX URL and auth from global or default\n\t\t\tconst mediaMTXURL = window.MEDIAMTX_WEBRTC_URL || 'http://localhost:8889';\n\t\t\tconst authQuery = window.MEDIAMTX_AUTH || '';\n\n\t\t\t// Build stream path: /{station_id}/{entity_id}\n\t\t\tconst streamPath = stationId ? stationId + '/' + entityId : entityId;\n\n\t\t\t// Remove any existing modal first\n\t\t\tconst existingModal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (existingModal) existingModal.remove();\n\n\t\t\t// Create fullscreen modal with WebRTC iframe using safe DOM methods\n\t\t\tconst modal = document.createElement('div');\n\t\t\tmodal.id = 'video-fullscreen-modal';\n\n\t\t\t// Create header\n\t\t\tconst header = document.createElement('div');\n\t\t\theader.className = 'fullscreen-header';\n\n\t\t\tconst entityLabel = document.createElement('span');\n\t\t\tentityLabel.className = 'entity-label';\n\t\t\tentityLabel.textContent = stationId ? stationId + ' / ' + entityId : entityId;\n\n\t\t\tconst streamType = document.createElement('span');\n\t\t\tstreamType.className = 'stream-type';\n\t\t\tstreamType.style.cssText = 'color: #0f0; font-size: 12px; margin-left: 10px;';\n\t\t\tstreamType.textContent = 'WebRTC';\n\n\t\t\tconst closeBtn = document.createElement('button');\n\t\t\tcloseBtn.className = 'close-btn';\n\t\t\tcloseBtn.textContent = 'Close (ESC)';\n\t\t\tcloseBtn.onclick = closeVideoFullscreen;\n\n\t\t\theader.appendChild(entityLabel);\n\t\t\theader.appendChild(streamType);\n\t\t\theader.appendChild(closeBtn);\n\n\t\t\t// Create video container\n\t\t\tconst videoContainer = document.createElement('div');\n\t\t\tvideoContainer.className = 'fullscreen-video';\n\n\t\t\tconst iframe = document.createElement('iframe');\n\t\t\tiframe.src = mediaMTXURL + '/' + streamPath + authQuery;\n\t\t\tiframe.allow = 'autoplay; fullscreen';\n\t\t\tiframe.style.cssText = 'width: 100%; height: 100%; border: none;';\n\n\t\t\tvideoContainer.appendChild(iframe);\n\t\t\tmodal.appendChild(header);\n\t\t\tmodal.appendChild(videoContainer);\n\t\t\tdocument.body.appendChild(modal);\n\n\t\t\t// ESC key to close\n\t\t\tconst escHandler = function(e) {\n\t\t\t\tif (e.key === 'Escape') {\n\t\t\t\t\tcloseVideoFullscreen();\n\t\t\t\t\tdocument.removeEventListener('keydown', escHandler);\n\t\t\t\t}\n\t\t\t};\n\t\t\tdocument.addEventListener('keydown', escHandler);\n\t\t}\n\n\t\tfunction closeVideoFullscreen() {\n\t\t\tconst modal = document.getElementById('video-fullscreen-modal');\n\t\t\tif (modal) modal.remove();\n\t\t}\n\n\t</script><style>\n\t\t/* Video Card Styles */\n\t\t.video-card {\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-radius: 4px;\n\t\t\toverflow: hidden;\n\t\t\tborder: 1px solid #333;\n\t\t\ttransition: border-color 0.3s ease;\n\t\t}\n\n\t\t.video-card.stream-offline {\n\t\t\tborder-color: #622;\n\t\t\topacity: 0.8;\n\t\t}\n\n\t\t.video-card-header {\n\t\t\tpadding: 10px 15px;\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t\tbackground: #1a1a1a;\n\t\t}\n\n\t\t.video-card-header .entity-name {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.video-card-header .entity-type {\n\t\t\tcolor: #ff0;\n\t\t\tfont-size: 11px;\n\t\t\ttext-transform: uppercase;\n\t\t\tbackground: rgba(255, 255, 0, 0.1);\n\t\t\tpadding: 2px 6px;\n\t\t\tborder-radius: 3px;\n\t\t\tmargin-left: 8px;\n\t\t}\n\n\t\t.video-card-stats {\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tgap: 8px;\n\t\t}\n\n\t\t/* Stream Status Indicator */\n\t\t.stream-status {\n\t\t\tfont-size: 10px;\n\t\t\tfont-weight: 600;\n\t\t\tpadding: 2px 8px;\n\t\t\tborder-radius: 3px;\n\t\t\ttext-transform: uppercase;\n\t\t\tletter-spacing: 0.5px;\n\t\t}\n\n\t\t.stream-status.online {\n\t\t\tbackground: rgba(0, 255, 100, 0.2);\n\t\t\tcolor: #0f8;\n\t\t\tanimation: pulse-live 2s infinite;\n\t\t}\n\n\t\t.stream-status.offline {\n\t\t\tbackground: rgba(255, 50, 50, 0.2);\n\t\t\tcolor: #f55;\n\t\t}\n\n\t\t@keyframes pulse-live {\n\t\t\t0%, 100% { opacity: 1; }\n\t\t\t50% { opacity: 0.7; }\n\t\t}\n\n\t\t/* Viewer Count */\n\t\t.viewer-count {\n\t\t\tfont-size: 11px;\n\t\t\tcolor: #888;\n\t\t}\n\n\t\t.viewer-count:not(:empty) {\n\t\t\tpadding: 2px 6px;\n\t\t\tbackground: rgba(255, 255, 255, 0.1);\n\t\t\tborder-radius: 3px;\n\t\t}\n\n\t\t.video-card-stats .fps-counter {\n\t\t\tcolor: #888;\n\t\t\tfont-size: 11px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.video-card-stats .status-dot {\n\t\t\twidth: 8px;\n\t\t\theight: 8px;\n\t\t\tbackground: #0f0;\n\t\t\tborder-radius: 50%;\n\t\t}\n\n\t\t/* Video Container */\n\t\t.video-container {\n\t\t\tposition: relative;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.video-container .video-mjpeg {\n\t\t\twidth: 100%;\n\t\t\theight: auto;\n\t\t\tdisplay: block;\n\t\t}\n\n\t\t.video-container .no-signal-overlay {\n\t\t\tposition: absolute;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: rgba(0, 0, 0, 0.85);\n\t\t\tdisplay: none;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tz-index: 10;\n\t\t\tcolor: #666;\n\t\t\tfont-size: 14px;\n\t\t}\n\n\t\t.video-container .no-signal-overlay.show {\n\t\t\tdisplay: flex;\n\t\t}\n\n\t\t/* Video Controls */\n\t\t.video-card-controls {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 8px 12px;\n\t\t\tbackground: #1a1a1a;\n\t\t\tborder-top: 1px solid #333;\n\t\t}\n\n\t\t.video-card-controls .fps-counter {\n\t\t\tcolor: #0ff;\n\t\t\tfont-size: 12px;\n\t\t\tfont-family: monospace;\n\t\t}\n\n\t\t.video-card-controls .status-label {\n\t\t\tcolor: #0f0;\n\t\t\tfont-size: 12px;\n\t\t\ttext-transform: uppercase;\n\t\t}\n\n\t\t.status-dot.disconnected {\n\t\t\tbackground: #f00;\n\t\t}\n\n\t\t.btn-fullscreen {\n\t\t\tbackground: #0a4;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 6px 12px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 12px;\n\t\t}\n\n\t\t.btn-fullscreen:hover {\n\t\t\tbackground: #0b5;\n\t\t}\n\n\t\t/* Fullscreen Modal */\n\t\t#video-fullscreen-modal {\n\t\t\tposition: fixed;\n\t\t\ttop: 0;\n\t\t\tleft: 0;\n\t\t\tright: 0;\n\t\t\tbottom: 0;\n\t\t\tbackground: #000;\n\t\t\tz-index: 10000;\n\t\t\tdisplay: flex;\n\t\t\tflex-direction: column;\n\t\t}\n\n\t\t.fullscreen-header {\n\t\t\tdisplay: flex;\n\t\t\tjustify-content: space-between;\n\t\t\talign-items: center;\n\t\t\tpadding: 10px 20px;\n\t\t\tbackground: #111;\n\t\t\tborder-bottom: 1px solid #333;\n\t\t}\n\n\t\t.fullscreen-header .entity-label {\n\t\t\tcolor: #0ff;\n\t\t\tfont-weight: bold;\n\t\t}\n\n\t\t.fullscreen-header .close-btn {\n\t\t\tbackground: #a00;\n\t\t\tborder: none;\n\t\t\tcolor: #fff;\n\t\t\tpadding: 8px 16px;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-header .close-btn:hover {\n\t\t\tbackground: #c00;\n\t\t\ttransform: none !important;\n\t\t}\n\n\t\t.fullscreen-video {\n\t\t\tflex: 1;\n\t\t\tdisplay: flex;\n\t\t\talign-items: center;\n\t\t\tjustify-content: center;\n\t\t\tbackground: #000;\n\t\t}\n\n\t\t.fullscreen-video img {\n\t\t\tmax-width: 100%;\n\t\t\tmax-height: calc(100vh - 60px);\n\t\t\tobject-fit: contain;\n\t\t}\n\t</style>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
