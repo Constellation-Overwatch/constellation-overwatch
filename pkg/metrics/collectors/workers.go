@@ -14,6 +14,22 @@ type WorkerManager interface {
 	GetWorkers() []Worker
 }
 
+// WorkerManagerAdapter wraps any type that returns a slice of named workers,
+// bridging concrete worker types to the collectors.Worker interface.
+type WorkerManagerAdapter[T Worker] struct {
+	GetWorkersFunc func() []T
+}
+
+// GetWorkers implements WorkerManager by converting the concrete slice.
+func (a *WorkerManagerAdapter[T]) GetWorkers() []Worker {
+	concrete := a.GetWorkersFunc()
+	result := make([]Worker, len(concrete))
+	for i, w := range concrete {
+		result[i] = w
+	}
+	return result
+}
+
 // WorkersCollector collects metrics from workers
 type WorkersCollector struct {
 	manager     WorkerManager

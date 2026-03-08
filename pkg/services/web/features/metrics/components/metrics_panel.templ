@@ -16,6 +16,16 @@ templ MetricsPanel() {
 			gcPauseNs: 0,
 			httpRequestsTotal: 0,
 			httpRequestsInFlight: 0,
+			natsConnections: 0,
+			natsMsgsIn: 0,
+			natsMsgsOut: 0,
+			natsSlowConsumers: 0,
+			natsUptime: '--',
+			jsStreams: 0,
+			jsConsumers: 0,
+			jsMessages: 0,
+			jsMemUsed: 0,
+			jsStoreUsed: 0,
 			timestamp: '--:--:--',
 			_isConnected: false
 		}"
@@ -97,6 +107,60 @@ templ MetricsPanel() {
 					<div class="metric-card">
 						<div class="metric-label">In Flight</div>
 						<div class="metric-value" data-text="Math.round($httpRequestsInFlight)"></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- NATS Server Section -->
+			<div class="metrics-section">
+				<h3>NATS</h3>
+				<div class="metric-cards">
+					<div class="metric-card">
+						<div class="metric-label">Connections</div>
+						<div class="metric-value" data-text="$natsConnections"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Msgs In</div>
+						<div class="metric-value" data-text="$natsMsgsIn.toLocaleString()"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Msgs Out</div>
+						<div class="metric-value" data-text="$natsMsgsOut.toLocaleString()"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Slow Consumers</div>
+						<div class="metric-value" data-text="$natsSlowConsumers"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Uptime</div>
+						<div class="metric-value" data-text="$natsUptime"></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- JetStream Section -->
+			<div class="metrics-section">
+				<h3>JetStream</h3>
+				<div class="metric-cards">
+					<div class="metric-card">
+						<div class="metric-label">Streams</div>
+						<div class="metric-value" data-text="$jsStreams"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Consumers</div>
+						<div class="metric-value" data-text="$jsConsumers"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Messages</div>
+						<div class="metric-value" data-text="$jsMessages.toLocaleString()"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Memory Used</div>
+						<div class="metric-value" data-text="(Math.round($jsMemUsed / 1024 / 1024)) + ' MB'"></div>
+					</div>
+					<div class="metric-card">
+						<div class="metric-label">Store Used</div>
+						<div class="metric-value" data-text="(Math.round($jsStoreUsed / 1024 / 1024)) + ' MB'"></div>
 					</div>
 				</div>
 			</div>

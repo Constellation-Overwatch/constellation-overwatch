@@ -6,17 +6,20 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
+	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	metrics_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/metrics/pages"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/signals"
 )
 
 // MetricsHandler handles metrics-related HTTP requests
-type MetricsHandler struct{}
+type MetricsHandler struct {
+	nats *embeddednats.EmbeddedNATS
+}
 
 // NewMetricsHandler creates a new metrics handler
-func NewMetricsHandler() *MetricsHandler {
-	return &MetricsHandler{}
+func NewMetricsHandler(nats *embeddednats.EmbeddedNATS) *MetricsHandler {
+	return &MetricsHandler{nats: nats}
 }
 
 // HandleSSE streams metrics via Server-Sent Events using Datastar
@@ -62,6 +65,22 @@ func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 				HTTPRequestsTotal:    0,
 				HTTPRequestsInFlight: 0,
 				Timestamp:            time.Now().Format("15:04:05"),
+			}
+
+			// NATS server stats (native Varz/Jsz — no custom struct)
+			if v := h.nats.Varz(); v != nil {
+				sig.NATSConnections = v.Connections
+				sig.NATSMsgsIn = v.InMsgs
+				sig.NATSMsgsOut = v.OutMsgs
+				sig.NATSSlowConsumers = v.SlowConsumers
+				sig.NATSUptime = v.Uptime
+			}
+			if j := h.nats.Jsz(); j != nil {
+				sig.JSStreams = j.Streams
+				sig.JSConsumers = j.Consumers
+				sig.JSMessages = j.Messages
+				sig.JSMemUsed = j.Memory
+				sig.JSStoreUsed = j.Store
 			}
 
 			// Add custom metrics from Prometheus registry

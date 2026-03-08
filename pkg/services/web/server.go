@@ -163,37 +163,3 @@ func (s *Server) HealthCheck() error {
 	return nil
 }
 
-// HandleHealthCheck handles the health check endpoint
-func (s *Server) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
-	health := shared.HealthStatus{
-		Status:    "healthy",
-		Service:   "constellation-overwatch",
-		Timestamp: time.Now(),
-		Details:   make(map[string]string),
-	}
-
-	// Check database
-	if err := s.db.GetDB().Ping(); err != nil {
-		health.Status = "unhealthy"
-		health.Details["database"] = "unhealthy: " + err.Error()
-	} else {
-		health.Details["database"] = "healthy"
-	}
-
-	// Check NATS
-	if err := s.natsEmbedded.HealthCheck(); err != nil {
-		health.Status = "unhealthy"
-		health.Details["nats"] = "unhealthy: " + err.Error()
-	} else {
-		health.Details["nats"] = "healthy"
-	}
-
-	statusCode := http.StatusOK
-	if health.Status == "unhealthy" {
-		statusCode = http.StatusServiceUnavailable
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	fmt.Fprintf(w, `{"status":"%s"}`, health.Status)
-}

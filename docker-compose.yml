@@ -8,25 +8,37 @@ services:
       - "4222:4222"
       - "8080:8080"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - overwatch-data:/data
       # Uncomment if using custom certs
       # - ./certs:/app/certs:ro
     environment:
-      - NATS_HOST=0.0.0.0
+      # Server
+      - HOST=0.0.0.0
+      - PORT=8080
+      - OVERWATCH_DATA_DIR=/data
+      - ALLOWED_ORIGINS=http://localhost:8080
+
+      # NATS
+      - NATS_HOST=0.0.0.0       # Bind NATS to all interfaces for edge device access
       - NATS_PORT=4222
-      # Security Configuration
-      - NATS_AUTH_ENABLED=true
-      - NATS_USER=constellation
-      - NATS_PASSWORD=changeme_dev_only
-      - NATS_SYS_USER=sys
-      - NATS_SYS_PASSWORD=changeme_sys_dev_only
-      # TLS Configuration (Enable for production)
-      - NATS_TLS_ENABLED=false
-      # - NATS_TLS_CERT=/app/certs/server.crt
-      # - NATS_TLS_KEY=/app/certs/server.key
+      - NATS_MONITOR_HOST=127.0.0.1
+      - NATS_MONITOR_PORT=8222
+
+      # NATS TLS (uncomment for production)
+      # - NATS_ENABLE_TLS=true
+      # - NATS_TLS_CERT=/app/certs/nats.crt
+      # - NATS_TLS_KEY=/app/certs/nats.key
+
+      # Production overrides (uncomment and set for production)
+      # - OVERWATCH_RPID=yourdomain.com
+      # - OVERWATCH_BASE_URL=https://yourdomain.com
+      # - OVERWATCH_ADMIN_EMAIL=admin@yourdomain.com
+      # - OVERWATCH_KEY_HASH_SECRET=change-me-to-a-random-secret
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  overwatch-data:
