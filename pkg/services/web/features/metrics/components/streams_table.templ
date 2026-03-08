@@ -1,0 +1,31 @@
+package components
+
+import "fmt"
+
+templ StreamsTable(streams []StreamDetail) {
+	<div id="streams-detail" class="detail-section">
+		<h4 class="detail-title">Streams</h4>
+		<table class="detail-table">
+			<thead>
+				<tr>
+					<th>Stream</th>
+					<th>Messages</th>
+					<th>Bytes</th>
+					<th>Consumers</th>
+					<th>Msg/s</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, s := range streams {
+					<tr>
+						<td class="stream-name">{ s.Name }</td>
+						<td>{ formatUint64(s.Messages) }</td>
+						<td>{ formatBytes(s.Bytes) }</td>
+						<td>{ fmt.Sprintf("%d", s.Consumers) }</td>
+						<td>{ fmt.Sprintf("%.1f", s.MsgRate) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

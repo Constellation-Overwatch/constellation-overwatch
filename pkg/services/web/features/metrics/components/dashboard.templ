@@ -1,0 +1,55 @@
+package components
+
+// defaultSections defines the section IDs, titles, icons, and colors
+// so placeholder divs are rendered on initial page load for SSE patching.
+var defaultSections = []ChartSection{
+	{ID: "section-system", Title: "System", Icon: "\u2699", Color: "#06b6d4"},
+	{ID: "section-runtime", Title: "Runtime", Icon: "\u25b6", Color: "#339970"},
+	{ID: "section-http", Title: "HTTP", Icon: "\u21c4", Color: "#3b82f6"},
+	{ID: "section-nats", Title: "NATS", Icon: "\u26a1", Color: "#8b5cf6"},
+	{ID: "section-jetstream", Title: "JetStream", Icon: "\u2601", Color: "#f59e0b"},
+}
+
+templ MetricsDashboard(sections []ChartSection, streams []StreamDetail, consumers []ConsumerDetail, connections []ConnectionDetail) {
+	<div
+		id="metrics-dashboard"
+		class="metrics-dashboard"
+		data-signals='{"_isConnected": false, "timestamp": "--:--:--"}'
+		data-init="@get('/api/metrics/sse')"
+	>
+		<div class="dashboard-header">
+			<h2>System Metrics</h2>
+			<div class="status-bar">
+				<span class="connection-status" data-show="$_isConnected">
+					<span class="status-dot connected"></span>
+					Connected
+				</span>
+				<span class="connection-status" data-show="!$_isConnected">
+					<span class="status-dot disconnected"></span>
+					Connecting...
+				</span>
+				<span class="timestamp" data-text="$timestamp"></span>
+			</div>
+		</div>
+		<div class="sections-container">
+			if len(sections) > 0 {
+				for _, section := range sections {
+					@Section(section)
+				}
+			} else {
+				for _, placeholder := range defaultSections {
+					@Section(placeholder)
+				}
+			}
+		</div>
+		<div class="details-container">
+			@StreamsTable(streams)
+			@ConsumersTable(consumers)
+			@ConnectionsTable(connections)
+		</div>
+		<div class="metrics-footer">
+			<span class="timestamp">Last updated: <span data-text="$timestamp"></span></span>
+			<a href="/metrics" target="_blank" class="prometheus-link">View Raw Prometheus Metrics</a>
+		</div>
+	</div>
+}

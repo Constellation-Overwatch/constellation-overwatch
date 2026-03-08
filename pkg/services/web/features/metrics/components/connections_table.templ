@@ -1,0 +1,37 @@
+package components
+
+import "fmt"
+
+templ ConnectionsTable(connections []ConnectionDetail) {
+	<div id="connections-detail" class="detail-section">
+		<h4 class="detail-title">Connections</h4>
+		<table class="detail-table">
+			<thead>
+				<tr>
+					<th>CID</th>
+					<th>Name</th>
+					<th>IP</th>
+					<th>Msgs In</th>
+					<th>Msgs Out</th>
+					<th>Bytes In</th>
+					<th>Bytes Out</th>
+					<th>Subs</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, conn := range connections {
+					<tr>
+						<td>{ fmt.Sprintf("%d", conn.CID) }</td>
+						<td>{ conn.Name }</td>
+						<td>{ conn.IP }</td>
+						<td>{ formatInt64(conn.MsgsIn) }</td>
+						<td>{ formatInt64(conn.MsgsOut) }</td>
+						<td>{ formatBytes(uint64(conn.BytesIn)) }</td>
+						<td>{ formatBytes(uint64(conn.BytesOut)) }</td>
+						<td>{ fmt.Sprintf("%d", conn.Subscriptions) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

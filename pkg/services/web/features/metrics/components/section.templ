@@ -1,0 +1,25 @@
+package components
+
+templ Section(section ChartSection) {
+	<div id={ section.ID } class="chart-section" style={ "border-left-color:" + section.Color }>
+		<div class="section-header">
+			<span class="section-icon">{ section.Icon }</span>
+			<span class="section-title">{ section.Title }</span>
+		</div>
+		<div class="chart-grid">
+			for _, chart := range section.Charts {
+				@Sparkline(chart)
+			}
+		</div>
+		if len(section.Stats) > 0 {
+			<div class="stats-grid">
+				for _, stat := range section.Stats {
+					<div class="stat-card">
+						<span class="stat-label">{ stat.Label }</span>
+						<span class="stat-value" style={ "color:" + section.Color }>{ stat.Value }</span>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}

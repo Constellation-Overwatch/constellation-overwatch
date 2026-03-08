@@ -1,0 +1,19 @@
+package components
+
+templ Sparkline(chart ChartData) {
+	<div id={ chart.ID } class="chart-container">
+		<div class="chart-header">
+			<span class="chart-title">{ chart.Title }</span>
+			<span class="chart-value" style={ "color:" + chart.Color }>{ FormatValue(chart.Current, chart.Unit) }</span>
+		</div>
+		<svg class="sparkline-svg" viewBox="0 0 200 50" preserveAspectRatio="none">
+			<path d={ BuildAreaPath(chart.Points, 200, 50) } fill={ chart.Color } fill-opacity="0.15"/>
+			<polyline points={ BuildLinePath(chart.Points, 200, 50) } fill="none" stroke={ chart.Color } stroke-width="1.5"/>
+		</svg>
+		<div class="chart-stats">
+			<span class="chart-stat">min { FormatValue(chart.Min, chart.Unit) }</span>
+			<span class="chart-stat">avg { FormatValue(chart.Avg, chart.Unit) }</span>
+			<span class="chart-stat">max { FormatValue(chart.Max, chart.Unit) }</span>
+		</div>
+	</div>
+}
