@@ -33,7 +33,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := extractAPIKey(r)
 		if raw == "" {
-			writeJSONError(w, http.StatusUnauthorized,"Missing API key or Authorization header")
+			writeJSONError(w, http.StatusUnauthorized, "Missing API key or Authorization header")
 			return
 		}
 
@@ -44,7 +44,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// No recognized prefix — reject.
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 	})
 }
 
@@ -80,7 +80,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 		return
 	}
 	if err != nil {
@@ -90,14 +90,14 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if revoked == 1 {
-		writeJSONError(w, http.StatusUnauthorized,"API key has been revoked")
+		writeJSONError(w, http.StatusUnauthorized, "API key has been revoked")
 		return
 	}
 
 	if expiresAt.Valid {
 		exp, parseErr := time.Parse(time.RFC3339, expiresAt.String)
 		if parseErr == nil && time.Now().After(exp) {
-			writeJSONError(w, http.StatusUnauthorized,"API key has expired")
+			writeJSONError(w, http.StatusUnauthorized, "API key has expired")
 			return
 		}
 	}

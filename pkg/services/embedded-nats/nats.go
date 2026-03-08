@@ -397,8 +397,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -806,7 +806,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }

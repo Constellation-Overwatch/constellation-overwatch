@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"time"
 
@@ -97,6 +98,9 @@ func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
 
 // renderStreamMessage renders a stream message HTML
 func renderStreamMessage(subject, timestamp, data string) string {
+	s := html.EscapeString(subject)
+	t := html.EscapeString(timestamp)
+	d := html.EscapeString(data)
 	return fmt.Sprintf(`
 		<div class="stream-message" data-subject="%s">
 			<div class="msg-header">
@@ -107,7 +111,7 @@ func renderStreamMessage(subject, timestamp, data string) string {
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, data)
+	`, s, s, t, d)
 }
 
 // StreamMessagesWithFilter streams filtered NATS messages
@@ -190,7 +194,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	logger.Infow("SSE client connected with filter", "component", "SSE", "remote_addr", r.RemoteAddr, "filter", filter)
 
 	// Send initial connection message
-	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, filter)
+	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, html.EscapeString(filter))
 	sse.PatchElements(initialHTML,
 		datastar.WithSelector("#stream-messages"),
 		datastar.WithModeInner())
@@ -249,6 +253,10 @@ func getMessageType(subject string) string {
 
 // renderStreamMessageWithType renders a stream message with type
 func renderStreamMessageWithType(subject, timestamp, msgType, data string) string {
+	s := html.EscapeString(subject)
+	t := html.EscapeString(timestamp)
+	mt := html.EscapeString(msgType)
+	d := html.EscapeString(data)
 	return fmt.Sprintf(`
 		<div class="stream-message" data-subject="%s">
 			<div class="msg-header">
@@ -260,5 +268,5 @@ func renderStreamMessageWithType(subject, timestamp, msgType, data string) strin
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, msgType, data)
+	`, s, s, t, mt, d)
 }

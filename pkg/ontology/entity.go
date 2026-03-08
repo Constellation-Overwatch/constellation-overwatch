@@ -96,13 +96,13 @@ type Position struct {
 
 // VideoConfig defines the video stream endpoints for an entity.
 type VideoConfig struct {
-	Protocol        string `json:"protocol,omitempty" enum:"rtsp,rtmp,srt,hls" doc:"Stream source protocol"`
-	Port            int    `json:"port,omitempty" doc:"Stream source port"`
-	StreamURL       string `json:"stream_url,omitempty" doc:"Primary RTSP/RTMP stream URL"`
-	OverlayURL      string `json:"overlay_url,omitempty" doc:"Detection overlay RTSP/RTMP stream URL (e.g. rtsp://host:8554/entity_id/pulsar)"`
-	WebRTCURL       string `json:"webrtc_url,omitempty" doc:"WebRTC playback base URL for raw stream (WHEP = webrtc_url + /whep)"`
+	Protocol         string `json:"protocol,omitempty" enum:"rtsp,rtmp,srt,hls" doc:"Stream source protocol"`
+	Port             int    `json:"port,omitempty" doc:"Stream source port"`
+	StreamURL        string `json:"stream_url,omitempty" doc:"Primary RTSP/RTMP stream URL"`
+	OverlayURL       string `json:"overlay_url,omitempty" doc:"Detection overlay RTSP/RTMP stream URL (e.g. rtsp://host:8554/entity_id/pulsar)"`
+	WebRTCURL        string `json:"webrtc_url,omitempty" doc:"WebRTC playback base URL for raw stream (WHEP = webrtc_url + /whep)"`
 	OverlayWebRTCURL string `json:"overlay_webrtc_url,omitempty" doc:"WebRTC playback URL for detection overlay stream (WHEP = overlay_webrtc_url + /whep). Preferred by video player when set."`
-	HLSURL          string `json:"hls_url,omitempty" doc:"HLS playback URL"`
+	HLSURL           string `json:"hls_url,omitempty" doc:"HLS playback URL"`
 }
 
 // PreferredWebRTCURL returns the best WebRTC URL for video playback.

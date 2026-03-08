@@ -162,4 +162,3 @@ func (s *Server) HealthCheck() error {
 	}
 	return nil
 }
-

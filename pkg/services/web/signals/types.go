@@ -36,7 +36,7 @@ type MetricsSignals struct {
 	NATSUptime        string `json:"natsUptime"`
 
 	// JetStream metrics
-	JSStreams    int    `json:"jsStreams"`
+	JSStreams   int    `json:"jsStreams"`
 	JSConsumers int    `json:"jsConsumers"`
 	JSMessages  uint64 `json:"jsMessages"`
 	JSMemUsed   uint64 `json:"jsMemUsed"`

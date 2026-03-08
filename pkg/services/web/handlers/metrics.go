@@ -49,10 +49,10 @@ type metricsSnapshot struct {
 	httpTotal float64
 
 	// NATS
-	natsMsgsIn       int64
-	natsMsgsOut      int64
+	natsMsgsIn        int64
+	natsMsgsOut       int64
 	natsSlowConsumers int64
-	natsUptime       string
+	natsUptime        string
 
 	// JetStream
 	jsStreams   int
@@ -87,11 +87,6 @@ func NewMetricsHandler(nats *embeddednats.EmbeddedNATS) *MetricsHandler {
 
 // HandleSSE streams metrics via Server-Sent Events using Datastar fragment patching.
 func (h *MetricsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 

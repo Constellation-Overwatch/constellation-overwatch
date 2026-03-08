@@ -60,14 +60,14 @@ type DeletedOutput struct {
 
 func (h *EntityHandler) Register(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "create-entity",
-		Method:      http.MethodPost,
-		Path:        "/v1/organizations/{org_id}/entities",
-		Summary:     "Create entity",
-		Description: "Create a new entity within an organization",
-		Tags:        []string{"Entities"},
+		OperationID:   "create-entity",
+		Method:        http.MethodPost,
+		Path:          "/v1/organizations/{org_id}/entities",
+		Summary:       "Create entity",
+		Description:   "Create a new entity within an organization",
+		Tags:          []string{"Entities"},
 		DefaultStatus: http.StatusCreated,
-		Security: []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+		Security:      []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
 	}, func(ctx context.Context, input *CreateEntityInput) (*EntityOutput, error) {
 		entity, err := h.service.CreateEntity(input.OrgID, &input.Body)
 		if err != nil {

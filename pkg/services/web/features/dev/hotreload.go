@@ -31,12 +31,6 @@ func NewHotReload() *HotReload {
 // Browsers connect to this endpoint and wait for reload signals.
 // On initial connection (or reconnection after server restart), it triggers an immediate reload.
 func (h *HotReload) HandleReloadSSE(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
 	sse := datastar.NewSSE(w, r)
 
 	// Send a comment to establish the connection

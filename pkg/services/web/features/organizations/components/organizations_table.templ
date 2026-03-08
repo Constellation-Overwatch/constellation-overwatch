@@ -1,9 +1,22 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
+
+// marshalSignals returns a JSON string safe for use in data-signals attributes.
+func marshalOrgSignals(org ontology.Organization) string {
+	m := map[string]interface{}{
+		"org_id":           org.OrgID,
+		"edit_name":        org.Name,
+		"edit_org_type":    org.OrgType,
+		"edit_description": org.Description,
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
 
 templ OrganizationsPanel(organizations []ontology.Organization, selectedOrgID string) {
 	<div id="organizations-panel" class="panel"
@@ -39,40 +52,38 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 			for _, org := range organizations {
 				@OrganizationRow(org, selectedOrgID)
 			}
-			<tr id="new-org-form-row" class="form-row-inline">
-				<form id="new-org-form"
-					data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
-					data-indicator:submitting>
-					<td>
-						<input type="text"
-							name="name"
-							class="inline-form-input"
-							placeholder="Organization Name *"
-							required
-							maxlength="255"/>
-					</td>
-					<td>
-						<select name="org_type" class="inline-form-input" required>
-							<option value="">Select Type *</option>
-							<option value="military">Military</option>
-							<option value="civilian">Civilian</option>
-							<option value="commercial">Commercial</option>
-							<option value="ngo">NGO</option>
-						</select>
-					</td>
-					<td>
-						<input type="text"
-							name="description"
-							class="inline-form-input"
-							placeholder="Description (optional)"
-							maxlength="500"/>
-					</td>
-					<td>
-						<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
-							Add
-						</button>
-					</td>
-				</form>
+			<tr id="new-org-form-row" class="form-row-inline"
+				data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
+				data-indicator:submitting>
+				<td>
+					<input type="text"
+						name="name"
+						class="inline-form-input"
+						placeholder="Organization Name *"
+						required
+						maxlength="255"/>
+				</td>
+				<td>
+					<select name="org_type" class="inline-form-input" required>
+						<option value="">Select Type *</option>
+						<option value="military">Military</option>
+						<option value="civilian">Civilian</option>
+						<option value="commercial">Commercial</option>
+						<option value="ngo">NGO</option>
+					</select>
+				</td>
+				<td>
+					<input type="text"
+						name="description"
+						class="inline-form-input"
+						placeholder="Description (optional)"
+						maxlength="500"/>
+				</td>
+				<td>
+					<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
+						Add
+					</button>
+				</td>
 			</tr>
 		</tbody>
 	</table>
@@ -89,8 +100,7 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 				Edit
 			</button>
 			<button class="action-btn small"
-				data-org-id={ org.OrgID }
-				onclick="(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)"
+				data-on:click={ fmt.Sprintf("navigator.clipboard.writeText('%s'); el.textContent='Copied!'; setTimeout(()=>el.textContent='Copy', 1500)", org.OrgID) }
 				title="Copy org_id for fleet device registration">
 				Copy
 			</button>
@@ -104,12 +114,7 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 
 templ OrganizationEditRow(org ontology.Organization) {
 	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline"
-		data-signals={ fmt.Sprintf(`{
-			org_id: '%s',
-			edit_name: '%s',
-			edit_org_type: '%s',
-			edit_description: '%s'
-		}`, org.OrgID, org.Name, org.OrgType, org.Description) }>
+		data-signals={ marshalOrgSignals(org) }>
 		<td>
 			<input type="text"
 				data-bind="edit_name"

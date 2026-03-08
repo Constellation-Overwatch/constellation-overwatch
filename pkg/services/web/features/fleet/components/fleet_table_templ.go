@@ -9,9 +9,25 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
+
+// marshalFleetSignals returns a JSON string safe for use in data-signals attributes.
+func marshalFleetSignals(entity ontology.Entity) string {
+	m := map[string]interface{}{
+		"entity_id":        entity.EntityID,
+		"edit_org_id":      entity.OrgID,
+		"edit_name":        entity.Name,
+		"edit_entity_type": entity.EntityType,
+		"edit_status":      entity.Status,
+		"edit_priority":    entity.Priority,
+		"edit_is_live":     entity.IsLive,
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
 
 func FleetTable(organizations []ontology.Organization, entities []ontology.Entity) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -44,7 +60,7 @@ func FleetTable(organizations []ontology.Organization, entities []ontology.Entit
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<tr id=\"new-fleet-form-row\" class=\"form-row-inline\"><form id=\"new-fleet-form\" data-on:submit__prevent=\"@post('/api/fleet', {contentType: 'form'})\" data-indicator:submitting><td><select name=\"org_id\" class=\"inline-form-input\" required><option value=\"\">Select Organization *</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<tr id=\"new-fleet-form-row\" class=\"form-row-inline\" data-on:submit__prevent=\"@post('/api/fleet', {contentType: 'form'})\" data-indicator:submitting><td><select name=\"org_id\" class=\"inline-form-input\" required><option value=\"\">Select Organization *</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -56,7 +72,7 @@ func FleetTable(organizations []ontology.Organization, entities []ontology.Entit
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(org.OrgID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 35, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 50, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -69,7 +85,7 @@ func FleetTable(organizations []ontology.Organization, entities []ontology.Entit
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(org.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 35, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 50, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -80,7 +96,7 @@ func FleetTable(organizations []ontology.Organization, entities []ontology.Entit
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</select></td><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Entity Name\" maxlength=\"255\"></td><td><select name=\"entity_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"aircraft_fixed_wing\">Aircraft - Fixed Wing</option> <option value=\"aircraft_multirotor\">Aircraft - Multirotor</option> <option value=\"aircraft_vtol\">Aircraft - VTOL</option> <option value=\"aircraft_helicopter\">Aircraft - Helicopter</option> <option value=\"aircraft_airship\">Aircraft - Airship</option> <option value=\"ground_vehicle_wheeled\">Ground Vehicle - Wheeled</option> <option value=\"ground_vehicle_tracked\">Ground Vehicle - Tracked</option> <option value=\"surface_vessel_usv\">Surface Vessel - USV</option> <option value=\"underwater_vehicle\">Underwater Vehicle</option> <option value=\"sensor_platform\">Sensor Platform</option> <option value=\"payload_system\">Payload System</option> <option value=\"operator_station\">Operator Station</option> <option value=\"waypoint\">Waypoint</option> <option value=\"no_fly_zone\">No-Fly Zone</option> <option value=\"geofence\">Geofence</option></select></td><td><select name=\"status\" class=\"inline-form-input\" required><option value=\"\">Select Status *</option> <option value=\"active\">Active</option> <option value=\"inactive\">Inactive</option> <option value=\"pending\">Pending</option> <option value=\"error\">Error</option> <option value=\"maintenance\">Maintenance</option> <option value=\"unknown\">Unknown</option></select></td><td><select name=\"priority\" class=\"inline-form-input\" required><option value=\"\">Select Priority *</option> <option value=\"low\">Low</option> <option value=\"normal\" selected>Normal</option> <option value=\"high\">High</option> <option value=\"critical\">Critical</option></select></td><td><select name=\"is_live\" class=\"inline-form-input\" required><option value=\"false\">NO</option> <option value=\"true\">YES</option></select></td><td colspan=\"2\" class=\"position\">Optional on create</td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></form></tr></tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</select></td><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Entity Name\" maxlength=\"255\"></td><td><select name=\"entity_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"aircraft_fixed_wing\">Aircraft - Fixed Wing</option> <option value=\"aircraft_multirotor\">Aircraft - Multirotor</option> <option value=\"aircraft_vtol\">Aircraft - VTOL</option> <option value=\"aircraft_helicopter\">Aircraft - Helicopter</option> <option value=\"aircraft_airship\">Aircraft - Airship</option> <option value=\"ground_vehicle_wheeled\">Ground Vehicle - Wheeled</option> <option value=\"ground_vehicle_tracked\">Ground Vehicle - Tracked</option> <option value=\"surface_vessel_usv\">Surface Vessel - USV</option> <option value=\"underwater_vehicle\">Underwater Vehicle</option> <option value=\"sensor_platform\">Sensor Platform</option> <option value=\"payload_system\">Payload System</option> <option value=\"operator_station\">Operator Station</option> <option value=\"waypoint\">Waypoint</option> <option value=\"no_fly_zone\">No-Fly Zone</option> <option value=\"geofence\">Geofence</option></select></td><td><select name=\"status\" class=\"inline-form-input\" required><option value=\"\">Select Status *</option> <option value=\"active\">Active</option> <option value=\"inactive\">Inactive</option> <option value=\"pending\">Pending</option> <option value=\"error\">Error</option> <option value=\"maintenance\">Maintenance</option> <option value=\"unknown\">Unknown</option></select></td><td><select name=\"priority\" class=\"inline-form-input\" required><option value=\"\">Select Priority *</option> <option value=\"low\">Low</option> <option value=\"normal\" selected>Normal</option> <option value=\"high\">High</option> <option value=\"critical\">Critical</option></select></td><td><select name=\"is_live\" class=\"inline-form-input\" required><option value=\"false\">NO</option> <option value=\"true\">YES</option></select></td><td colspan=\"2\" class=\"position\">Optional on create</td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></tr></tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -116,7 +132,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("fleet-row-%s", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 105, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 119, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -131,7 +147,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(org.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 109, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 123, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -146,7 +162,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 113, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 127, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -159,7 +175,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 114, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 128, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -194,7 +210,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Status)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 115, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 129, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -229,7 +245,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(entity.Priority)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 116, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 130, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -280,7 +296,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.4f, %.4f", *entity.Latitude, *entity.Longitude))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 126, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 140, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -299,7 +315,7 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(entity.UpdatedAt.Format("15:04:05"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 131, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 145, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -312,33 +328,33 @@ func FleetRow(organizations []ontology.Organization, entity ontology.Entity) tem
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("@get('/fleet/edit/%s')", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 134, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 148, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\">Edit</button> <button class=\"action-btn small\" data-entity-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\">Edit</button> <button class=\"action-btn small\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var20 string
-		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(entity.EntityID)
+		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("navigator.clipboard.writeText('%s'); el.textContent='Copied!'; setTimeout(()=>el.textContent='Copy', 1500)", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 138, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 152, Col: 158}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" onclick=\"(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.entityId)\" title=\"Copy entity_id for API integration\">Copy</button> <button class=\"action-btn small danger\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" title=\"Copy entity_id for API integration\">Copy</button> <button class=\"action-btn small danger\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("if (confirm('Are you sure you want to delete this entity?')) @delete('/api/fleet/%s?org_id=%s')", entity.EntityID, entity.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 144, Col: 161}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 157, Col: 161}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -380,7 +396,7 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("fleet-row-%s", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 152, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 165, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -391,17 +407,9 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`{
-			entity_id: '%s',
-			edit_org_id: '%s',
-			edit_name: '%s',
-			edit_entity_type: '%s',
-			edit_status: '%s',
-			edit_priority: '%s',
-			edit_is_live: %t
-		}`, entity.EntityID, entity.OrgID, entity.Name, entity.EntityType, entity.Status, entity.Priority, entity.IsLive))
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(marshalFleetSignals(entity))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 161, Col: 115}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 166, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -419,7 +427,7 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(org.OrgID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 165, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 170, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -442,7 +450,7 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(org.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 165, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 170, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -730,7 +738,7 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("@get('/fleet/cancel/%s')", entity.EntityID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 228, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 233, Col: 76}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
