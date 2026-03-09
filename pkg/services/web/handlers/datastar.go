@@ -12,9 +12,9 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	fleet_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/components"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/go-chi/chi/v5"
 	"github.com/nats-io/nats.go"
 )

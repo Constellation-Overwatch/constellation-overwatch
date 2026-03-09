@@ -21,6 +21,8 @@ import (
 type Config struct {
 	Host            string
 	Port            int
+	MonitorHost     string // NATS HTTP monitoring bind address
+	MonitorPort     int    // NATS HTTP monitoring port (/varz, /connz, /jsz, /healthz)
 	DataDir         string
 	MaxMemory       int64
 	MaxFileStore    int64
@@ -87,6 +89,8 @@ func DefaultConfig() *Config {
 	return &Config{
 		Host:            shared.GetEnv("NATS_HOST", "127.0.0.1"), // Bind to localhost by default
 		Port:            getEnvInt("NATS_PORT", 4222),
+		MonitorHost:     shared.GetEnv("NATS_MONITOR_HOST", "127.0.0.1"), // Monitoring on localhost by default
+		MonitorPort:     getEnvInt("NATS_MONITOR_PORT", 8222),
 		DataDir:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
 		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
 		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
@@ -146,6 +150,10 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		Port:      en.config.Port,
 		JetStream: true,
 		StoreDir:  en.config.DataDir,
+
+		// NATS HTTP monitoring (/varz, /connz, /jsz, /healthz)
+		HTTPHost: en.config.MonitorHost,
+		HTTPPort: en.config.MonitorPort,
 
 		// Connection limits optimized for video streaming
 		MaxConn:        2000,
@@ -211,7 +219,8 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 
 	logger.Info("Embedded NATS server started",
 		zap.String("host", en.config.Host),
-		zap.Int("port", en.config.Port))
+		zap.Int("port", en.config.Port),
+		zap.String("monitor", fmt.Sprintf("%s:%d", en.config.MonitorHost, en.config.MonitorPort)))
 	return nil
 }
 
@@ -388,8 +397,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -542,6 +551,45 @@ func (en *EmbeddedNATS) HealthCheck() error {
 	}
 
 	return nil
+}
+
+// Varz returns live server statistics (connections, msgs, bytes, uptime, etc.).
+// Returns nil if the embedded server is not running.
+func (en *EmbeddedNATS) Varz() *server.Varz {
+	if en.server == nil {
+		return nil
+	}
+	v, err := en.server.Varz(nil)
+	if err != nil {
+		return nil
+	}
+	return v
+}
+
+// Jsz returns JetStream statistics (memory/store usage, streams, consumers).
+// Returns nil if the embedded server is not running.
+func (en *EmbeddedNATS) Jsz() *server.JSInfo {
+	if en.server == nil {
+		return nil
+	}
+	j, err := en.server.Jsz(nil)
+	if err != nil {
+		return nil
+	}
+	return j
+}
+
+// Connz returns current connection details.
+// Returns nil if the embedded server is not running.
+func (en *EmbeddedNATS) Connz() *server.Connz {
+	if en.server == nil {
+		return nil
+	}
+	c, err := en.server.Connz(nil)
+	if err != nil {
+		return nil
+	}
+	return c
 }
 
 // WatchKV watches for changes in the KV store and calls the callback for each change
@@ -758,7 +806,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }

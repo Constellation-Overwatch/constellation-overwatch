@@ -4,12 +4,15 @@ import "time"
 
 // MetricsSnapshot contains system metrics
 type MetricsSnapshot struct {
-	MemTotal      uint64
-	MemAlloc      uint64
-	HeapAlloc     uint64
-	NumGoroutines int
-	NumCPU        int
-	NumGC         uint32
+	MemTotal       uint64
+	MemAlloc       uint64
+	HeapAlloc      uint64
+	NumGoroutines  int
+	NumCPU         int
+	NumGC          uint32
+	CPUPercent     float64
+	MemUsedPercent float64
+	LoadAvg1       float64
 }
 
 // WorkerStatus represents a worker's status

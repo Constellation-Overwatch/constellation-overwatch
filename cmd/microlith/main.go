@@ -36,6 +36,8 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics/collectors"
 	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -212,14 +214,22 @@ func cmdStart(args []string) {
 		logger.Fatalw("Failed to start workers", "error", err)
 	}
 
-	// 4. Bootstrap admin user if none exist
+	// 4. Register Prometheus collectors now that NATS + workers are live
+	metrics.MustRegister(
+		collectors.NewNATSCollector(natsService.JetStream()),
+		collectors.NewWorkersCollector(&collectors.WorkerManagerAdapter[workers.Worker]{
+			GetWorkersFunc: workerManager.GetWorkers,
+		}),
+	)
+
+	// 5. Bootstrap admin user if none exist
 	bootstrapAdmin(dbService)
 
-	// 5. Initialize API Router
+	// 6. Initialize API Router
 	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
-	// 6. Initialize Web Server
+	// 7. Initialize Web Server
 	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {

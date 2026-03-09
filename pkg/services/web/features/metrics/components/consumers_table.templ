@@ -1,0 +1,33 @@
+package components
+
+import "fmt"
+
+templ ConsumersTable(consumers []ConsumerDetail) {
+	<div id="consumers-detail" class="detail-section">
+		<h4 class="detail-title">Consumers</h4>
+		<table class="detail-table">
+			<thead>
+				<tr>
+					<th>Stream</th>
+					<th>Consumer</th>
+					<th>Pending</th>
+					<th>Ack Pending</th>
+					<th>Redelivered</th>
+					<th>Delivered</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, c := range consumers {
+					<tr>
+						<td>{ c.Stream }</td>
+						<td>{ c.Name }</td>
+						<td>{ formatUint64(c.Pending) }</td>
+						<td>{ fmt.Sprintf("%d", c.AckPending) }</td>
+						<td>{ fmt.Sprintf("%d", c.Redelivered) }</td>
+						<td>{ formatUint64(c.Delivered) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

@@ -28,6 +28,20 @@ type MetricsSignals struct {
 	HTTPRequestsTotal    float64 `json:"httpRequestsTotal"`
 	HTTPRequestsInFlight float64 `json:"httpRequestsInFlight"`
 
+	// NATS server metrics (from native server.Varz / server.Jsz)
+	NATSConnections   int    `json:"natsConnections"`
+	NATSMsgsIn        int64  `json:"natsMsgsIn"`
+	NATSMsgsOut       int64  `json:"natsMsgsOut"`
+	NATSSlowConsumers int64  `json:"natsSlowConsumers"`
+	NATSUptime        string `json:"natsUptime"`
+
+	// JetStream metrics
+	JSStreams   int    `json:"jsStreams"`
+	JSConsumers int    `json:"jsConsumers"`
+	JSMessages  uint64 `json:"jsMessages"`
+	JSMemUsed   uint64 `json:"jsMemUsed"`
+	JSStoreUsed uint64 `json:"jsStoreUsed"`
+
 	// Metadata
 	Timestamp   string `json:"timestamp"`
 	IsConnected bool   `json:"_isConnected,omitempty"`

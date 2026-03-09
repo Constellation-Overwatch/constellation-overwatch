@@ -131,15 +131,15 @@ type EntityState struct {
 	ThreatIntel *ThreatIntelState `json:"threat_intel,omitempty"`
 
 	// Device Identity (MAVLink/Legacy)
-	SystemID      uint8                  `json:"system_id,omitempty"`
-	ComponentID   uint8                  `json:"component_id,omitempty"`
-	DeviceID      string                 `json:"device_id,omitempty"`
-	StreamPort    string                 `json:"stream_port,omitempty"`
+	SystemID      uint8                 `json:"system_id,omitempty"`
+	ComponentID   uint8                 `json:"component_id,omitempty"`
+	DeviceID      string                `json:"device_id,omitempty"`
+	StreamPort    string                `json:"stream_port,omitempty"`
 	VideoConfig   *ontology.VideoConfig `json:"video_config,omitempty"`
-	Subject       string                 `json:"subject,omitempty"`
-	FirstSeen     time.Time              `json:"first_seen,omitempty"`
-	LastSeen      time.Time              `json:"last_seen,omitempty"`
-	Fingerprinted bool                   `json:"fingerprinted,omitempty"`
+	Subject       string                `json:"subject,omitempty"`
+	FirstSeen     time.Time             `json:"first_seen,omitempty"`
+	LastSeen      time.Time             `json:"last_seen,omitempty"`
+	Fingerprinted bool                  `json:"fingerprinted,omitempty"`
 
 	// Database Fields
 	Components     map[string]interface{} `json:"components"`

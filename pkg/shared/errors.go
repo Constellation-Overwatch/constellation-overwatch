@@ -8,6 +8,6 @@ var (
 	ErrRevoked      = errors.New("revoked")
 	ErrExpired      = errors.New("expired")
 	ErrNoUpdates    = errors.New("no updates provided")
-	ErrNATSNotReady    = errors.New("NATS connection not initialized")
-	ErrInvalidInput    = errors.New("invalid input")
+	ErrNATSNotReady = errors.New("NATS connection not initialized")
+	ErrInvalidInput = errors.New("invalid input")
 )

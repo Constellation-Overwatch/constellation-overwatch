@@ -6,7 +6,7 @@ import (
 )
 
 templ EntityForm(orgID string, entity *ontology.Entity, isEdit bool) {
-	<div class="modal-backdrop" data-on:click__outside="this.parentElement.innerHTML=''">
+	<div class="modal-backdrop" data-on:click="this.parentElement.innerHTML=''">
 		<div class="modal" data-on:click__stop="">
 			<div class="modal-header">
 				if isEdit {
@@ -196,7 +196,7 @@ templ EntityForm(orgID string, entity *ontology.Entity, isEdit bool) {
 }
 
 templ OrganizationForm() {
-	<div class="modal-backdrop" data-on:click__outside="this.parentElement.innerHTML=''">
+	<div class="modal-backdrop" data-on:click="this.parentElement.innerHTML=''">
 		<div class="modal" data-on:click__stop="">
 			<div class="modal-header">
 				<h2>New Organization</h2>

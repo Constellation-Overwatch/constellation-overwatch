@@ -32,6 +32,9 @@ func NewRouter(
 ) chi.Router {
 	r := chi.NewRouter()
 
+	// Prometheus HTTP metrics (request count, duration, in-flight)
+	r.Use(metrics.MiddlewareFunc)
+
 	// Initialize handlers
 	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc)
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc, natsEmbedded.Connection())
@@ -40,7 +43,7 @@ func NewRouter(
 	authHandler := handlers.NewAuthHandler(sessionAuth, authSvc, userSvc)
 	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
 	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
-	metricsHandler := handlers.NewMetricsHandler()
+	metricsHandler := handlers.NewMetricsHandler(natsEmbedded)
 
 	// Serve static files (no auth required) — uses embedded filesystem
 	staticHandler, err := StaticFileServer()
@@ -56,6 +59,11 @@ func NewRouter(
 		if err := natsEmbedded.HealthCheck(); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprintf(w, `{"status":"unhealthy","error":"nats"}`)
+			return
+		}
+		if j := natsEmbedded.Jsz(); j == nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintf(w, `{"status":"unhealthy","error":"jetstream"}`)
 			return
 		}
 		w.Write([]byte(`{"status":"ok"}`))
@@ -107,9 +115,9 @@ func NewRouter(
 		r.Post("/auth/passkey/register/begin", authHandler.HandlePasskeyRegisterBegin)
 		r.Post("/auth/passkey/register/finish", authHandler.HandlePasskeyRegisterFinish)
 
-		// Metrics dashboard
-		r.Get("/metrics-ui", metricsHandler.HandleMetricsPage)
-		r.Get("/api/metrics/sse", metricsHandler.HandleSSE)
+		// Monitoring dashboard
+		r.Get("/monitoring", metricsHandler.HandleMetricsPage)
+		r.Get("/api/monitoring/sse", metricsHandler.HandleSSE)
 
 		// Web API: Organizations (Datastar/SSE)
 		r.Route("/api/organizations", func(r chi.Router) {

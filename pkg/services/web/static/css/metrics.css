@@ -1,10 +1,23 @@
-.metrics-container {
+/* Metrics-specific variables */
+:root {
+    --metrics-card-bg: #131316;
+    --metrics-card-bg-darker: #0a0a0b;
+    --metrics-accent-color: #339970;
+    --section-system: #06b6d4;
+    --section-runtime: #339970;
+    --section-http: #3b82f6;
+    --section-nats: #8b5cf6;
+    --section-jetstream: #f59e0b;
+}
+
+/* Dashboard layout */
+.metrics-dashboard {
     padding: 20px;
     max-width: 1400px;
     margin: 0 auto;
 }
 
-.metrics-header {
+.dashboard-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -13,12 +26,206 @@
     border-bottom: 1px solid var(--border-color, #333);
 }
 
-.metrics-header h2 {
+.dashboard-header h2 {
     margin: 0;
     color: var(--text-primary, #fff);
     font-size: 1.5rem;
 }
 
+/* Sections */
+.sections-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.chart-section {
+    background: var(--metrics-card-bg);
+    border: 1px solid var(--border-color, #333);
+    border-left: 3px solid var(--metrics-accent-color);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.section-header span {
+    color: var(--text-primary, #fff);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* Chart grid */
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 1024px) {
+    .chart-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .chart-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Individual chart cards */
+.chart-container {
+    background: var(--metrics-card-bg-darker);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    padding: 12px;
+    transition: border-color 0.2s ease;
+}
+
+.chart-container:hover {
+    border-color: var(--metrics-accent-color);
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.chart-title {
+    color: #888;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chart-value {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--metrics-accent-color);
+}
+
+/* Sparkline */
+.sparkline-svg {
+    width: 100%;
+    height: 50px;
+    display: block;
+    margin: 8px 0;
+}
+
+/* Chart stats (min/avg/max) */
+.chart-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: #666;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+.chart-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+/* Stats grid (flat key-value cards below sparklines) */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color, #333);
+}
+
+.stat-card {
+    background: var(--metrics-card-bg-darker);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.stat-label {
+    color: #888;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-value {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* Detail tables */
+.details-container {
+    margin-top: 20px;
+}
+
+.detail-section {
+    margin-bottom: 16px;
+    background: var(--metrics-card-bg);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.detail-title {
+    color: var(--text-primary, #fff);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+}
+
+.detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+.detail-table th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #333;
+    color: #888;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.detail-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #1a1a1a;
+    color: #ccc;
+}
+
+.detail-table tbody tr:hover {
+    background: #1a1a1a;
+}
+
+.stream-name {
+    color: var(--metrics-accent-color);
+}
+
+/* Status bar and connection */
 .status-bar {
     display: flex;
     align-items: center;
@@ -52,61 +259,7 @@
     50% { opacity: 0.3; }
 }
 
-.metrics-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-}
-
-.metrics-section {
-    background: var(--metrics-card-bg, #0a1a10);
-    border: 1px solid var(--border-color, #333);
-    border-radius: 8px;
-    padding: 16px;
-}
-
-.metrics-section h3 {
-    margin: 0 0 16px 0;
-    color: var(--text-primary, #fff);
-    font-size: 1rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.metric-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-}
-
-.metric-card {
-    background: var(--metrics-card-bg-darker, #040d06);
-    border: 1px solid var(--border-color, #333);
-    border-radius: 6px;
-    padding: 16px;
-    transition: border-color 0.2s ease;
-}
-
-.metric-card:hover {
-    border-color: var(--metrics-accent-color, #4ade80);
-}
-
-.metric-label {
-    color: #888;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 4px;
-}
-
-.metric-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--metrics-accent-color, #4ade80);
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-}
-
+/* Footer */
 .metrics-footer {
     margin-top: 24px;
     padding-top: 16px;
@@ -122,7 +275,7 @@
 }
 
 .prometheus-link {
-    color: var(--metrics-accent-color, #4ade80);
+    color: var(--metrics-accent-color);
     font-size: 0.875rem;
     text-decoration: none;
     transition: opacity 0.2s ease;
@@ -131,11 +284,4 @@
 .prometheus-link:hover {
     opacity: 0.8;
     text-decoration: underline;
-}
-
-/* Metrics-specific variables */
-:root {
-    --metrics-card-bg: #131316;
-    --metrics-card-bg-darker: #0a0a0b;
-    --metrics-accent-color: #339970;
 }

@@ -13,12 +13,15 @@ import (
 
 // SystemModel displays system metrics (memory, CPU, goroutines)
 type SystemModel struct {
-	memTotal      uint64
-	memAlloc      uint64
-	heapAlloc     uint64
-	numGoroutines int
-	numCPU        int
-	numGC         uint32
+	memTotal       uint64
+	memAlloc       uint64
+	heapAlloc      uint64
+	numGoroutines  int
+	numCPU         int
+	numGC          uint32
+	cpuPercent     float64
+	memUsedPercent float64
+	loadAvg1       float64
 
 	width   int
 	height  int
@@ -43,6 +46,9 @@ func (m SystemModel) Update(msg tea.Msg) (SystemModel, tea.Cmd) {
 		m.numGoroutines = msg.NumGoroutines
 		m.numCPU = msg.NumCPU
 		m.numGC = msg.NumGC
+		m.cpuPercent = msg.CPUPercent
+		m.memUsedPercent = msg.MemUsedPercent
+		m.loadAvg1 = msg.LoadAvg1
 	}
 	return m, nil
 }
@@ -64,11 +70,25 @@ func (m SystemModel) View() string {
 	// Build content
 	var content strings.Builder
 
-	// Memory gauge
+	// CPU% gauge (system-level)
+	content.WriteString(m.renderGauge("CPU%", m.cpuPercent, gaugeWidth))
+	content.WriteString("\n")
+
+	// OS Memory gauge (system-level)
+	content.WriteString(m.renderGauge("OS Mem", m.memUsedPercent, gaugeWidth))
+	content.WriteString("\n")
+
+	// Load average
+	loadLabel := styles.GaugeLabelStyle.Render("Load:")
+	loadValue := styles.GaugeValueStyle.Render(fmt.Sprintf("%.2f", m.loadAvg1))
+	content.WriteString(fmt.Sprintf("%s %s", loadLabel, loadValue))
+	content.WriteString("\n")
+
+	// Memory gauge (Go runtime)
 	content.WriteString(m.renderGauge("Mem", memPercent, gaugeWidth))
 	content.WriteString("\n")
 
-	// Heap gauge
+	// Heap gauge (Go runtime)
 	content.WriteString(m.renderGauge("Heap", heapPercent, gaugeWidth))
 	content.WriteString("\n")
 

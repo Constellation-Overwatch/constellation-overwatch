@@ -10,7 +10,7 @@ templ MetricsPage() {
 	@layouts.BaseWithStyles("Metrics", []string{"/static/css/metrics.css"}) {
 		@components.Navigation("metrics") {
 			<div class="tab-content">
-				@metrics.MetricsPanel()
+				@metrics.MetricsDashboard(nil, nil, nil, nil)
 			</div>
 		}
 	}
