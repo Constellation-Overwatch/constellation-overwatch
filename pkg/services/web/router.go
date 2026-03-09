@@ -115,9 +115,9 @@ func NewRouter(
 		r.Post("/auth/passkey/register/begin", authHandler.HandlePasskeyRegisterBegin)
 		r.Post("/auth/passkey/register/finish", authHandler.HandlePasskeyRegisterFinish)
 
-		// Metrics dashboard
-		r.Get("/metrics-ui", metricsHandler.HandleMetricsPage)
-		r.Get("/api/metrics/sse", metricsHandler.HandleSSE)
+		// Monitoring dashboard
+		r.Get("/monitoring", metricsHandler.HandleMetricsPage)
+		r.Get("/api/monitoring/sse", metricsHandler.HandleSSE)
 
 		// Web API: Organizations (Datastar/SSE)
 		r.Route("/api/organizations", func(r chi.Router) {

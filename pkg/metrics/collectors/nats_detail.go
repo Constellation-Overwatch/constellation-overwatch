@@ -54,14 +54,6 @@ type NATSDetailCollector struct {
 	hasPrev  bool
 }
 
-var streamNames = []string{
-	"CONSTELLATION_ENTITIES",
-	"CONSTELLATION_COMMANDS",
-	"CONSTELLATION_TELEMETRY",
-	"CONSTELLATION_EVENTS",
-	"CONSTELLATION_ORGANIZATIONS",
-}
-
 // NewNATSDetailCollector creates a new NATSDetailCollector.
 func NewNATSDetailCollector(nats *embeddednats.EmbeddedNATS) *NATSDetailCollector {
 	return &NATSDetailCollector{
@@ -85,8 +77,8 @@ func (c *NATSDetailCollector) Collect() NATSDetails {
 		elapsed = now.Sub(c.prevTime).Seconds()
 	}
 
-	// Streams and their consumers
-	for _, name := range streamNames {
+	// Dynamically discover all streams instead of hardcoding names
+	for name := range js.StreamNames() {
 		info, err := js.StreamInfo(name)
 		if err != nil {
 			continue
@@ -109,8 +101,7 @@ func (c *NATSDetailCollector) Collect() NATSDetails {
 		})
 
 		// Enumerate consumers for this stream
-		consumerNames := js.ConsumerNames(name)
-		for consumerName := range consumerNames {
+		for consumerName := range js.ConsumerNames(name) {
 			ci, err := js.ConsumerInfo(name, consumerName)
 			if err != nil {
 				continue

@@ -15,7 +15,7 @@ templ MetricsDashboard(sections []ChartSection, streams []StreamDetail, consumer
 		id="metrics-dashboard"
 		class="metrics-dashboard"
 		data-signals='{"_isConnected": false, "timestamp": "--:--:--"}'
-		data-init="@get('/api/metrics/sse')"
+		data-init="@get('/api/monitoring/sse')"
 	>
 		<div class="dashboard-header">
 			<h2>System Metrics</h2>

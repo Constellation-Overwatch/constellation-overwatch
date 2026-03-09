@@ -39,7 +39,7 @@ func MetricsDashboard(sections []ChartSection, streams []StreamDetail, consumers
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"metrics-dashboard\" class=\"metrics-dashboard\" data-signals='{\"_isConnected\": false, \"timestamp\": \"--:--:--\"}' data-init=\"@get('/api/metrics/sse')\"><div class=\"dashboard-header\"><h2>System Metrics</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"timestamp\" data-text=\"$timestamp\"></span></div></div><div class=\"sections-container\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"metrics-dashboard\" class=\"metrics-dashboard\" data-signals='{\"_isConnected\": false, \"timestamp\": \"--:--:--\"}' data-init=\"@get('/api/monitoring/sse')\"><div class=\"dashboard-header\"><h2>System Metrics</h2><div class=\"status-bar\"><span class=\"connection-status\" data-show=\"$_isConnected\"><span class=\"status-dot connected\"></span> Connected</span> <span class=\"connection-status\" data-show=\"!$_isConnected\"><span class=\"status-dot disconnected\"></span> Connecting...</span> <span class=\"timestamp\" data-text=\"$timestamp\"></span></div></div><div class=\"sections-container\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -51,11 +51,11 @@ templ Navigation(activeTab string) {
 				</span>
 				<span>Video</span>
 			</a>
-			<a href="/metrics-ui" class={ "nav-button", templ.KV("active", activeTab == "metrics") }>
+			<a href="/monitoring" class={ "nav-button", templ.KV("active", activeTab == "metrics") }>
 				<span class="nav-icon">
 					@icons.Gauge()
 				</span>
-				<span>Metrics</span>
+				<span>Monitoring</span>
 			</a>
 			<a href="/admin" class={ "nav-button", templ.KV("active", activeTab == "admin") }>
 				<span class="nav-icon">
