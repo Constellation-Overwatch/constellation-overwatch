@@ -2,6 +2,8 @@ module github.com/Constellation-Overwatch/constellation-overwatch
 
 go 1.25.0
 
+toolchain go1.25.10
+
 require (
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/a-h/templ v0.3.977
