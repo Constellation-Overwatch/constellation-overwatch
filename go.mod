@@ -23,7 +23,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/starfederation/datastar-go v1.1.0
 	go.uber.org/zap v1.27.1
-	modernc.org/sqlite v1.46.1
+	modernc.org/sqlite v1.50.1
 )
 
 require (
@@ -78,7 +78,7 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	modernc.org/libc v1.68.0 // indirect
+	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
