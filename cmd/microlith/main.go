@@ -7,7 +7,7 @@
 // @contact.url https://github.com/Constellation-Overwatch/constellation-overwatch/issues
 // @contact.email support@constellation-overwatch.com
 
-// @license.name MIT
+// @license.name Constellation Overwatch Community Copyleft License 1.0
 // @license.url https://github.com/Constellation-Overwatch/constellation-overwatch/blob/main/LICENSE
 
 // @host localhost:8080

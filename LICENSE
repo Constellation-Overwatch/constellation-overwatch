@@ -1,9 +1,141 @@
-MIT License
+Constellation Overwatch Community Copyleft License 1.0
 
-Copyright 2025 the Constellation Overwatch authors
+Copyright 2025-2026 the Constellation Overwatch authors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+This license applies to Constellation Overwatch and any related source code,
+documentation, examples, scripts, and assets distributed with it (the
+"Software").
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+This is a community source license. It is intended to allow personal, hobby,
+research, educational, evaluation, government, military, and noncommercial
+community collaboration while requiring shared improvements and a paid
+commercial license for private-sector commercial use. It is not an OSI-approved
+open source license.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+1. Definitions
+
+"Core Group" means the Constellation Overwatch maintainers or any legal entity
+they designate to administer commercial licensing.
+
+"Commercial Use" means private-sector use of the Software, in whole or in part,
+by or for a for-profit entity, in connection with revenue-generating activity,
+in a product or service offered to third parties, as part of paid consulting or
+managed services, or in production operations for a business purpose.
+
+"Government and Military Use" means use of the Software by a government,
+military, public-sector, public safety, emergency response, educational, or
+public research organization for that organization's own mission, operations,
+evaluation, training, research, or internal deployment.
+
+"Community Use" means personal, hobby, research, educational, evaluation,
+Government and Military Use, or other noncommercial use that is not Commercial
+Use.
+
+"Modified Version" means any copy of the Software that has been changed,
+adapted, translated, extended, linked into, combined with, or otherwise used to
+create a derivative work requiring permission under copyright law.
+
+"Corresponding Source" means the complete preferred form of the Software and any
+Modified Version for making modifications, including build scripts, interface
+definitions, configuration files, installation instructions, and other materials
+reasonably necessary to build, run, test, and modify the work.
+
+2. Community Use Grant
+
+Subject to this license, the Core Group grants you a worldwide, royalty-free,
+non-exclusive copyright license to use, copy, modify, build, run, test, and
+redistribute the Software for Community Use.
+
+3. Copyleft and Share-Back Requirements
+
+If you distribute, publish, provide access to, or make available a Modified
+Version, including by operating it as a network service for users outside your
+personal household or hobby environment, you must:
+
+a. license the Modified Version under this same license;
+
+b. make the complete Corresponding Source for the Modified Version publicly
+available at no charge from a durable, readily accessible location;
+
+c. include a clear notice describing the changes you made and the date of those
+changes;
+
+d. preserve all copyright, license, attribution, and required notices; and
+
+e. notify the Core Group of the public source location by pull request, issue,
+or email to support@constellation-overwatch.com.
+
+These requirements apply whether the Modified Version is distributed as source
+code, object code, a container image, an appliance, a hosted service, or any
+other form.
+
+4. Commercial Use
+
+Government and Military Use is permitted under this community license when the
+Software is used directly by a government, military, public-sector, public
+safety, emergency response, educational, or public research organization for its
+own mission or operations.
+
+Commercial Use is not permitted under this community license. Before any
+Commercial Use, you must obtain a separate paid commercial license or written
+commercial-use agreement from the Core Group.
+
+Private-sector vendors, contractors, subcontractors, systems integrators,
+consultants, managed-service providers, cloud providers, and other for-profit
+entities do not receive free Government and Military Use rights merely because
+their customer, sponsor, funder, or end user is a government, military, or
+public-sector organization.
+
+Commercial licenses may include support, private modification rights, hosted
+deployment rights, revenue sharing, sponsorship, contribution obligations, or
+other payback terms agreed in writing with the Core Group.
+
+5. Contributions
+
+By intentionally submitting a contribution to the Constellation Overwatch
+project, you agree that the contribution may be licensed and sublicensed by the
+Core Group under this license and under commercial licenses. You represent that
+you have the right to submit the contribution and that it does not knowingly
+violate third-party rights.
+
+6. Patent Grant
+
+Each contributor grants you a worldwide, royalty-free, non-exclusive patent
+license to make, have made, use, import, run, modify, and distribute the
+contributor's contribution, but only to the extent necessary to exercise the
+Community Use rights granted under this license.
+
+If you make a written claim that the Software infringes a patent, your patent
+license under this section terminates immediately.
+
+7. No Trademark License
+
+This license does not grant rights to use the names, logos, trademarks, service
+marks, or branding of Constellation Overwatch or the Core Group except as
+necessary for reasonable attribution and license notices.
+
+8. Compliance and Cure
+
+If you violate this license, your rights under it terminate automatically. Your
+rights may be reinstated if you cure the violation within 30 days after you
+first receive written notice from the Core Group.
+
+9. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, AND NONINFRINGEMENT. USE OF THE SOFTWARE IS AT
+YOUR OWN RISK.
+
+10. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE AUTHORS, CONTRIBUTORS, COPYRIGHT
+HOLDERS, AND CORE GROUP WILL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY ARISING FROM OR RELATED TO THE SOFTWARE OR THIS LICENSE, WHETHER IN AN
+ACTION OF CONTRACT, TORT, OR OTHERWISE.
+
+11. Prior Versions
+
+Copies of the Software previously distributed under another license remain
+governed by the license terms that applied to those copies. This license applies
+to copies distributed with this license notice.
