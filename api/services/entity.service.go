@@ -133,6 +133,9 @@ func (s *EntityService) ListEntities(orgID string) ([]ontology.Entity, error) {
 		}
 		entities = append(entities, *entity)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating entity rows: %w", err)
+	}
 
 	return entities, nil
 }
@@ -156,6 +159,9 @@ func (s *EntityService) ListAllEntities() ([]ontology.Entity, error) {
 			return nil, err
 		}
 		entities = append(entities, *entity)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating entity rows: %w", err)
 	}
 
 	return entities, nil
