@@ -22,17 +22,292 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const overwatchClientQueueSize = 32
+
+type overwatchKVKind int
+
+const (
+	overwatchKVKindFullState overwatchKVKind = iota
+	overwatchKVKindDetections
+	overwatchKVKindAnalytics
+	overwatchKVKindThreatIntel
+	overwatchKVKindMAVLink
+)
+
+type overwatchKVKey struct {
+	EntityID string
+	Kind     overwatchKVKind
+}
+
+type overwatchKVUpdate struct {
+	EntityID      string
+	State         shared.EntityState
+	Removed       bool
+	TotalEntities int
+	FullSnapshot  bool
+}
+
+type overwatchKVBroadcaster struct {
+	natsEmbedded *embeddednats.EmbeddedNATS
+
+	mu          sync.RWMutex
+	entityData  map[string]map[string][]byte
+	entityState map[string]shared.EntityState
+	subscribers map[chan overwatchKVUpdate]struct{}
+
+	startMu sync.Mutex
+	started bool
+}
+
 type OverwatchHandler struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
 	orgSvc       *services.OrganizationService
 	entitySvc    *services.EntityService
+
+	kvBroadcaster      *overwatchKVBroadcaster
+	videoConfigMu      sync.Mutex
+	videoConfigCache   map[string]*ontology.VideoConfig
+	videoConfigCacheAt time.Time
 }
 
 func NewOverwatchHandler(natsEmbedded *embeddednats.EmbeddedNATS, orgSvc *services.OrganizationService, entitySvc *services.EntityService) *OverwatchHandler {
-	return &OverwatchHandler{
+	h := &OverwatchHandler{
 		natsEmbedded: natsEmbedded,
 		orgSvc:       orgSvc,
 		entitySvc:    entitySvc,
+	}
+	h.kvBroadcaster = newOverwatchKVBroadcaster(natsEmbedded)
+	return h
+}
+
+func newOverwatchKVBroadcaster(natsEmbedded *embeddednats.EmbeddedNATS) *overwatchKVBroadcaster {
+	return &overwatchKVBroadcaster{
+		natsEmbedded: natsEmbedded,
+		entityData:   make(map[string]map[string][]byte),
+		entityState:  make(map[string]shared.EntityState),
+		subscribers:  make(map[chan overwatchKVUpdate]struct{}),
+	}
+}
+
+func (b *overwatchKVBroadcaster) Start(ctx context.Context) error {
+	b.startMu.Lock()
+	defer b.startMu.Unlock()
+
+	if b.started {
+		return nil
+	}
+	if b.natsEmbedded == nil {
+		return fmt.Errorf("NATS not available")
+	}
+
+	if err := b.loadInitialState(); err != nil {
+		return err
+	}
+
+	b.started = true
+	go b.watch(ctx)
+	return nil
+}
+
+func (b *overwatchKVBroadcaster) Subscribe(ctx context.Context) (<-chan overwatchKVUpdate, []overwatchKVUpdate, func(), error) {
+	if err := b.Start(context.Background()); err != nil {
+		return nil, nil, nil, err
+	}
+
+	ch := make(chan overwatchKVUpdate, overwatchClientQueueSize)
+
+	b.mu.Lock()
+	b.subscribers[ch] = struct{}{}
+	initial := b.snapshotLocked()
+	b.mu.Unlock()
+
+	unsubscribe := func() {
+		b.mu.Lock()
+		if _, ok := b.subscribers[ch]; ok {
+			delete(b.subscribers, ch)
+			close(ch)
+		}
+		b.mu.Unlock()
+	}
+
+	go func() {
+		<-ctx.Done()
+		unsubscribe()
+	}()
+
+	return ch, initial, unsubscribe, nil
+}
+
+func (b *overwatchKVBroadcaster) Snapshot() []overwatchKVUpdate {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.snapshotLocked()
+}
+
+func (b *overwatchKVBroadcaster) snapshotLocked() []overwatchKVUpdate {
+	updates := make([]overwatchKVUpdate, 0, len(b.entityState))
+	total := len(b.entityState)
+	for entityID, state := range b.entityState {
+		updates = append(updates, overwatchKVUpdate{
+			EntityID:      entityID,
+			State:         state,
+			TotalEntities: total,
+		})
+	}
+	return updates
+}
+
+func (b *overwatchKVBroadcaster) loadInitialState() error {
+	initialEntries, err := b.natsEmbedded.GetAllKVEntries()
+	if err != nil {
+		return fmt.Errorf("loading initial KV state: %w", err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for _, entry := range initialEntries {
+		if _, ok := b.applyEntryLocked(entry); !ok {
+			continue
+		}
+	}
+	logger.Debugw("[Overwatch] Loaded shared KV state", "kv_entries", len(initialEntries), "entities", len(b.entityState))
+	return nil
+}
+
+func (b *overwatchKVBroadcaster) watch(ctx context.Context) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		err := b.natsEmbedded.WatchKV(ctx, func(_ string, entry nats.KeyValueEntry) error {
+			update, ok := b.applyEntry(entry)
+			if ok {
+				b.broadcast(update)
+			}
+			return nil
+		})
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			logger.Warnw("[Overwatch] Shared KV watcher stopped unexpectedly, restarting", "error", err)
+		} else {
+			logger.Warnw("[Overwatch] Shared KV watcher channel closed unexpectedly, restarting")
+		}
+
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (b *overwatchKVBroadcaster) applyEntry(entry nats.KeyValueEntry) (overwatchKVUpdate, bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.applyEntryLocked(entry)
+}
+
+func (b *overwatchKVBroadcaster) applyEntryLocked(entry nats.KeyValueEntry) (overwatchKVUpdate, bool) {
+	if entry == nil {
+		return overwatchKVUpdate{}, false
+	}
+
+	parsed, ok := parseOverwatchKVKey(entry.Key())
+	if !ok {
+		return overwatchKVUpdate{}, false
+	}
+
+	entityID := parsed.EntityID
+	key := entry.Key()
+
+	if entry.Operation() == nats.KeyValueDelete || entry.Operation() == nats.KeyValuePurge {
+		if b.entityData[entityID] == nil {
+			return overwatchKVUpdate{}, false
+		}
+		delete(b.entityData[entityID], key)
+		if len(b.entityData[entityID]) == 0 {
+			delete(b.entityData, entityID)
+			delete(b.entityState, entityID)
+			return overwatchKVUpdate{
+				EntityID:      entityID,
+				Removed:       true,
+				TotalEntities: len(b.entityState),
+			}, true
+		}
+		state := mergeOverwatchEntityData(entityID, b.entityData[entityID])
+		b.entityState[entityID] = state
+		return overwatchKVUpdate{
+			EntityID:      entityID,
+			State:         state,
+			TotalEntities: len(b.entityState),
+		}, true
+	}
+
+	value := entry.Value()
+	if len(value) == 0 {
+		value = []byte("{}")
+	} else {
+		var testJSON interface{}
+		if err := json.Unmarshal(value, &testJSON); err != nil {
+			logger.Warnw("[Overwatch] Invalid JSON in KV entry, storing as-is", "key", key, "error", err)
+		}
+	}
+
+	if b.entityData[entityID] == nil {
+		b.entityData[entityID] = make(map[string][]byte)
+	}
+	b.entityData[entityID][key] = value
+
+	state := mergeOverwatchEntityData(entityID, b.entityData[entityID])
+	b.entityState[entityID] = state
+
+	if parsed.Kind == overwatchKVKindMAVLink {
+		previewLen := 200
+		if len(value) < previewLen {
+			previewLen = len(value)
+		}
+		logger.Debugw("[Overwatch] MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
+	}
+
+	return overwatchKVUpdate{
+		EntityID:      entityID,
+		State:         state,
+		TotalEntities: len(b.entityState),
+	}, true
+}
+
+func (b *overwatchKVBroadcaster) broadcast(update overwatchKVUpdate) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	for ch := range b.subscribers {
+		sendOverwatchUpdate(ch, update)
+	}
+}
+
+func sendOverwatchUpdate(ch chan overwatchKVUpdate, update overwatchKVUpdate) {
+	select {
+	case ch <- update:
+		return
+	default:
+	}
+
+	for {
+		select {
+		case <-ch:
+			continue
+		default:
+		}
+		break
+	}
+
+	select {
+	case ch <- overwatchKVUpdate{FullSnapshot: true}:
+	default:
 	}
 }
 
@@ -102,7 +377,6 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Verify we have a flusher (required for SSE)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		logger.Infow("[Overwatch] ERROR: ResponseWriter does not support flushing (SSE won't work)")
@@ -110,28 +384,30 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		return
 	}
 
-	// CRITICAL: Set SSE headers BEFORE creating SSE generator or writing anything
+	ctx := r.Context()
+	updates, initialUpdates, unsubscribe, err := h.kvBroadcaster.Subscribe(ctx)
+	if err != nil {
+		logger.Warnw("[Overwatch] Failed to subscribe to shared KV broadcaster", "error", err)
+		http.Error(w, "KV watch unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer unsubscribe()
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	w.Header().Set("X-Accel-Buffering", "no")
 
 	logger.Debugw("[Overwatch] SSE headers set, establishing connection", "remote_addr", r.RemoteAddr)
 
-	// Create SSE generator AFTER setting headers
 	sse := datastar.NewSSE(w, r)
-
-	// Determine view mode
 	viewMode := r.URL.Query().Get("view")
 
-	// Mutex to synchronize writes to ResponseWriter from multiple goroutines
 	var writeMutex sync.Mutex
 
-	// Send an immediate comment to establish the SSE stream in the browser
 	writeMutex.Lock()
 	fmt.Fprintf(w, ": SSE connection established\n\n")
 
-	// Reset the entities container to empty state to prevent duplicates on reconnection
 	emptyState := `<div class="empty-state" style="color: #888; padding: 40px; text-align: center;">
 					<p>No entity states in global store. Waiting for telemetry data...</p>
 					<p style="font-size: 10px; margin-top: 10px;">Server-side rendering via SSE</p>
@@ -150,165 +426,23 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	writeMutex.Unlock()
 	logger.Debugw("SSE client connected", "component", "Overwatch", "remote_addr", r.RemoteAddr)
 
-	// Local cache of all KV data: entityID -> key -> data
-	// This allows us to reconstruct a single entity's state without fetching everything
-	localEntityCache := make(map[string]map[string][]byte)
-
-	// Track known entities (ID -> OrgID) to handle cleanup
 	knownEntities := make(map[string]string)
 	knownOrgs := make(map[string]bool)
+	dirtyStates := make(map[string]shared.EntityState)
+	removedEntities := make(map[string]bool)
+	totalEntities := 0
 
-	// DB entity cache for VideoConfig lookup (same pattern as video handler)
-	// VideoConfig lives in the DB, not KV, so we must look it up separately.
-	videoConfigCache := make(map[string]*ontology.VideoConfig)
-	var videoConfigCacheTime time.Time
-	refreshVideoConfigCache := func() {
-		if time.Since(videoConfigCacheTime) < 30*time.Second {
-			return
-		}
-		if h.entitySvc == nil {
-			return
-		}
-		entities, err := h.entitySvc.ListAllEntities()
-		if err != nil {
-			logger.Warnw("[Overwatch] Failed to refresh video config cache", "error", err)
-			return
-		}
-		next := make(map[string]*ontology.VideoConfig, len(entities))
-		for _, ent := range entities {
-			if ent.VideoConfig == "" || ent.VideoConfig == "{}" {
-				continue
-			}
-			var vc ontology.VideoConfig
-			if json.Unmarshal([]byte(ent.VideoConfig), &vc) == nil {
-				next[ent.EntityID] = &vc
-			}
-		}
-		videoConfigCache = next
-		videoConfigCacheTime = time.Now()
-		logger.Debugw("[Overwatch] Refreshed video config cache", "entries", len(next))
+	for _, update := range initialUpdates {
+		totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
 	}
-	// Initial load
-	refreshVideoConfigCache()
+	h.flushOverwatchUpdates(w, flusher, &writeMutex, sse, dirtyStates, removedEntities, totalEntities, knownEntities, knownOrgs, viewMode)
 
-	// Struct to pass data to renderer
-	type RenderPayload struct {
-		Snapshot      []shared.EntityState
-		RemovedIDs    []string
-		TotalEntities int
-	}
-
-	// Channel to buffer updates from NATS to SSE
-	// Increased buffer size to handle initial state dump and high throughput
-	updateChan := make(chan nats.KeyValueEntry, 10000)
-
-	// Channel to send snapshots to the renderer
-	// Buffer of 1 allows us to have one snapshot pending while the renderer is busy.
-	// If the renderer is too slow, we drop intermediate snapshots (conflation).
-	renderChan := make(chan RenderPayload, 1)
-
-	// Load initial KV data before starting watcher
-	ctx := r.Context()
-	go func() {
-		defer close(updateChan)
-
-		// STEP 1: Load existing KV data on initial connection
-		logger.Debugw("[Overwatch] Loading initial KV state...")
-		if initialEntries, err := h.natsEmbedded.GetAllKVEntries(); err == nil {
-			logger.Debugw("[Overwatch] Loaded initial state", "kv_entries", len(initialEntries))
-
-			// Send existing entries through the update channel to populate initial state
-			for _, entry := range initialEntries {
-				select {
-				case updateChan <- entry:
-					// Successfully queued initial entry
-				case <-ctx.Done():
-					return
-				case <-time.After(100 * time.Millisecond):
-					// Skip if channel is backed up during initial load
-					logger.Debugw("[Overwatch] Skipped initial entry due to channel backup", "key", entry.Key())
-				}
-			}
-			logger.Debugw("[Overwatch] Initial state load completed", "entities_loaded", len(initialEntries))
-		} else {
-			logger.Warnw("[Overwatch] Failed to load initial KV state", "error", err)
-		}
-
-		// STEP 2: Start watching for real-time changes
-		// Retry loop for the watcher
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-
-			logger.Debugw("[Overwatch] KV watcher goroutine started, waiting for changes...")
-
-			watchErr := h.natsEmbedded.WatchKV(ctx, func(key string, entry nats.KeyValueEntry) error {
-				select {
-				case updateChan <- entry:
-					return nil
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			})
-
-			if ctx.Err() != nil {
-				return
-			}
-
-			if watchErr != nil {
-				logger.Warnw("[Overwatch] KV watcher stopped unexpectedly, restarting...", "error", watchErr)
-			} else {
-				logger.Warnw("[Overwatch] KV watcher channel closed unexpectedly, restarting...")
-			}
-
-			select {
-			case <-time.After(1 * time.Second):
-				continue
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// Start Renderer Goroutine
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Debugw("Renderer goroutine stopping - context canceled")
-				return
-			case payload, ok := <-renderChan:
-				if !ok {
-					logger.Debugw("Renderer goroutine stopping - render channel closed")
-					return
-				}
-
-				// Check if context is still valid before rendering
-				if ctx.Err() != nil {
-					logger.Debugw("Context canceled, skipping render")
-					return
-				}
-
-				// Render and Flush
-				h.renderAndFlushSnapshot(w, flusher, &writeMutex, sse, payload.Snapshot, payload.RemovedIDs, payload.TotalEntities, knownEntities, knownOrgs, viewMode, videoConfigCache)
-			}
-		}
-	}()
-
-	// Keep the connection alive with heartbeats
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
-	// Flush ticker for batching
 	flushTicker := time.NewTicker(50 * time.Millisecond)
 	defer flushTicker.Stop()
 
-	dirtyEntities := make(map[string]bool)
-
-	// State Manager Loop (Main Goroutine)
-	// This loop MUST be fast to keep up with NATS.
-	// It does NO rendering.
 	for {
 		select {
 		case <-ctx.Done():
@@ -316,133 +450,141 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 			return
 
 		case <-ticker.C:
-			// Refresh DB video config cache on heartbeat interval
-			refreshVideoConfigCache()
-			// Send heartbeat only if connection is still valid
-			if flusher != nil {
-				writeMutex.Lock()
-				if flusher != nil { // Double-check after acquiring lock
-					fmt.Fprintf(w, ": heartbeat\n\n")
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								logger.Debugw("Recovered from heartbeat flush panic", "panic", r)
-							}
-						}()
-						flusher.Flush()
-					}()
-				}
-				writeMutex.Unlock()
-			}
+			h.currentVideoConfigCache()
+			writeOverwatchHeartbeat(w, flusher, &writeMutex)
 
 		case <-flushTicker.C:
-			// Periodic flush of dirty entities
-			if len(dirtyEntities) > 0 {
-				// Create snapshot and track removals
-				var snapshot []shared.EntityState
-				var removedIDs []string
+			h.flushOverwatchUpdates(w, flusher, &writeMutex, sse, dirtyStates, removedEntities, totalEntities, knownEntities, knownOrgs, viewMode)
 
-				for entityID := range dirtyEntities {
-					entityData, exists := localEntityCache[entityID]
-					if !exists {
-						removedIDs = append(removedIDs, entityID)
-						continue
-					}
-					// Reconstruct state (fast, just map lookups and struct creation)
-					entityState := h.mergeEntityData(entityID, entityData)
-					snapshot = append(snapshot, entityState)
-				}
-
-				// Try to send to renderer (non-blocking)
-				payload := RenderPayload{
-					Snapshot:      snapshot,
-					RemovedIDs:    removedIDs,
-					TotalEntities: len(localEntityCache),
-				}
-
-				select {
-				case renderChan <- payload:
-					// Success, renderer will handle it
-					dirtyEntities = make(map[string]bool)
-				default:
-					// Renderer is busy, skip this frame (conflation)
-					// We keep the entities dirty so they are included in the next snapshot
-					logger.Debugw("[Overwatch] Renderer busy, skipping frame (conflation)", "pending_entities", len(dirtyEntities))
-				}
-			}
-
-		case entry, ok := <-updateChan:
+		case update, ok := <-updates:
 			if !ok {
 				logger.Debugw("[Overwatch] Update channel closed, stopping SSE stream")
 				return
 			}
-
-			// Process KV entry with enhanced signal handling
-			key := entry.Key()
-			if key == "" {
-				logger.Warnw("[Overwatch] Received entry with empty key, skipping")
+			if update.FullSnapshot {
+				totalEntities = h.queueFullOverwatchSnapshot(knownEntities, dirtyStates, removedEntities)
 				continue
 			}
-
-			parts := strings.Split(key, ".")
-			if len(parts) == 0 {
-				logger.Warnw("[Overwatch] Invalid key format", "key", key)
-				continue
-			}
-
-			entityID := parts[0]
-			if entityID == "" {
-				logger.Warnw("[Overwatch] Empty entity ID", "key", key)
-				continue
-			}
-
-			// Initialize entity cache if needed
-			if localEntityCache[entityID] == nil {
-				localEntityCache[entityID] = make(map[string][]byte)
-				logger.Debugw("[Overwatch] Initialized cache for new entity", "entity_id", entityID)
-			}
-
-			// Handle delete operations
-			if entry.Operation() == nats.KeyValueDelete || entry.Operation() == nats.KeyValuePurge {
-				delete(localEntityCache[entityID], key)
-				if len(localEntityCache[entityID]) == 0 {
-					delete(localEntityCache, entityID)
-					logger.Debugw("[Overwatch] Removed entity from cache", "entity_id", entityID)
-				} else {
-					logger.Debugw("[Overwatch] Removed signal from entity", "entity_id", entityID, "key", key)
-				}
-			} else {
-				// Handle create/update operations
-				value := entry.Value()
-				if len(value) == 0 {
-					logger.Debugw("[Overwatch] Received empty value", "key", key)
-					// Store empty value to indicate signal exists but has no data
-					localEntityCache[entityID][key] = []byte("{}")
-				} else {
-					// Validate JSON before storing
-					var testJSON interface{}
-					if err := json.Unmarshal(value, &testJSON); err != nil {
-						logger.Warnw("[Overwatch] Invalid JSON in KV entry, storing as-is", "key", key, "error", err)
-						// Store anyway - merge functions will handle gracefully
-					}
-					localEntityCache[entityID][key] = value
-					logger.Debugw("[Overwatch] Updated entity signal", "entity_id", entityID, "key", key, "size", len(value))
-
-					// Log mavlink data for debugging
-					if strings.HasSuffix(key, ".mavlink") {
-						previewLen := 200
-						if len(value) < previewLen {
-							previewLen = len(value)
-						}
-						logger.Debugw("[Overwatch] MAVLink data received", "entity_id", entityID, "key", key, "data_preview", string(value)[:previewLen])
-					}
-				}
-			}
-
-			// Mark entity as dirty for rendering
-			dirtyEntities[entityID] = true
+			totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
 		}
 	}
+}
+
+func queueOverwatchUpdate(update overwatchKVUpdate, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool) int {
+	if update.Removed {
+		delete(dirtyStates, update.EntityID)
+		removedEntities[update.EntityID] = true
+		return update.TotalEntities
+	}
+
+	dirtyStates[update.EntityID] = update.State
+	delete(removedEntities, update.EntityID)
+	return update.TotalEntities
+}
+
+func (h *OverwatchHandler) queueFullOverwatchSnapshot(knownEntities map[string]string, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool) int {
+	updates := h.kvBroadcaster.Snapshot()
+	seen := make(map[string]bool, len(updates))
+	totalEntities := 0
+
+	for _, update := range updates {
+		totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
+		seen[update.EntityID] = true
+	}
+
+	for entityID := range knownEntities {
+		if !seen[entityID] {
+			delete(dirtyStates, entityID)
+			removedEntities[entityID] = true
+		}
+	}
+
+	return totalEntities
+}
+
+func (h *OverwatchHandler) flushOverwatchUpdates(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
+	if len(dirtyStates) == 0 && len(removedEntities) == 0 {
+		return
+	}
+
+	snapshot := make([]shared.EntityState, 0, len(dirtyStates))
+	for _, state := range dirtyStates {
+		snapshot = append(snapshot, state)
+	}
+
+	removedIDs := make([]string, 0, len(removedEntities))
+	for entityID := range removedEntities {
+		removedIDs = append(removedIDs, entityID)
+	}
+
+	videoConfigCache := h.currentVideoConfigCache()
+	h.renderAndFlushSnapshot(w, flusher, writeMutex, sse, snapshot, removedIDs, totalEntities, knownEntities, knownOrgs, viewMode, videoConfigCache)
+
+	for entityID := range dirtyStates {
+		delete(dirtyStates, entityID)
+	}
+	for entityID := range removedEntities {
+		delete(removedEntities, entityID)
+	}
+}
+
+func writeOverwatchHeartbeat(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex) {
+	if flusher == nil {
+		return
+	}
+
+	writeMutex.Lock()
+	defer writeMutex.Unlock()
+
+	fmt.Fprintf(w, ": heartbeat\n\n")
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Debugw("Recovered from heartbeat flush panic", "panic", r)
+			}
+		}()
+		flusher.Flush()
+	}()
+}
+
+func (h *OverwatchHandler) currentVideoConfigCache() map[string]*ontology.VideoConfig {
+	h.videoConfigMu.Lock()
+	defer h.videoConfigMu.Unlock()
+
+	if h.videoConfigCache != nil && time.Since(h.videoConfigCacheAt) < 30*time.Second {
+		return h.videoConfigCache
+	}
+	if h.entitySvc == nil {
+		if h.videoConfigCache == nil {
+			h.videoConfigCache = make(map[string]*ontology.VideoConfig)
+		}
+		return h.videoConfigCache
+	}
+
+	entities, err := h.entitySvc.ListAllEntities()
+	if err != nil {
+		logger.Warnw("[Overwatch] Failed to refresh video config cache", "error", err)
+		if h.videoConfigCache == nil {
+			h.videoConfigCache = make(map[string]*ontology.VideoConfig)
+		}
+		return h.videoConfigCache
+	}
+
+	next := make(map[string]*ontology.VideoConfig, len(entities))
+	for _, ent := range entities {
+		if ent.VideoConfig == "" || ent.VideoConfig == "{}" {
+			continue
+		}
+		var vc ontology.VideoConfig
+		if json.Unmarshal([]byte(ent.VideoConfig), &vc) == nil {
+			next[ent.EntityID] = &vc
+		}
+	}
+
+	h.videoConfigCache = next
+	h.videoConfigCacheAt = time.Now()
+	logger.Debugw("[Overwatch] Refreshed video config cache", "entries", len(next))
+	return h.videoConfigCache
 }
 
 // Helper to render and flush a snapshot
@@ -718,18 +860,18 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 	entitiesByID := make(map[string]map[string][]byte)
 
 	for _, entry := range entries {
-		key := entry.Key()
-
-		// Extract entity_id from key (before first dot or entire key if no dot)
-		parts := strings.Split(key, ".")
-		entityID := parts[0]
+		parsed, ok := parseOverwatchKVKey(entry.Key())
+		if !ok {
+			continue
+		}
+		entityID := parsed.EntityID
 
 		if entitiesByID[entityID] == nil {
 			entitiesByID[entityID] = make(map[string][]byte)
 		}
 
 		// Store raw data keyed by full key for later processing
-		entitiesByID[entityID][key] = entry.Value()
+		entitiesByID[entityID][entry.Key()] = entry.Value()
 	}
 
 	// Now build consolidated EntityState objects
@@ -739,7 +881,7 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 
 	for entityID, dataMap := range entitiesByID {
 		logger.Debugw("[Overwatch] Processing entity", "entity_id", entityID, "kv_entry_count", len(dataMap))
-		entityState := h.mergeEntityData(entityID, dataMap)
+		entityState := mergeOverwatchEntityData(entityID, dataMap)
 
 		// Group by org_id
 		orgID := entityState.OrgID
@@ -754,8 +896,40 @@ func (h *OverwatchHandler) parseKVEntriesToEntityStates(entries []nats.KeyValueE
 	return entityStatesByOrg
 }
 
-// mergeEntityData merges separate KV entries into a single EntityState
-func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][]byte) shared.EntityState {
+func parseOverwatchKVKey(key string) (overwatchKVKey, bool) {
+	if key == "" {
+		logger.Warnw("[Overwatch] Received entry with empty key, skipping")
+		return overwatchKVKey{}, false
+	}
+
+	patterns := []struct {
+		marker string
+		kind   overwatchKVKind
+	}{
+		{marker: ".detections.objects", kind: overwatchKVKindDetections},
+		{marker: ".analytics.summary", kind: overwatchKVKindAnalytics},
+		{marker: ".analytics.c4isr_summary", kind: overwatchKVKindAnalytics},
+		{marker: ".c4isr.threat_intelligence", kind: overwatchKVKindThreatIntel},
+		{marker: ".mavlink", kind: overwatchKVKindMAVLink},
+	}
+
+	for _, pattern := range patterns {
+		if idx := strings.LastIndex(key, pattern.marker); idx > 0 {
+			return overwatchKVKey{
+				EntityID: key[:idx],
+				Kind:     pattern.kind,
+			}, true
+		}
+	}
+
+	return overwatchKVKey{
+		EntityID: key,
+		Kind:     overwatchKVKindFullState,
+	}, true
+}
+
+// mergeOverwatchEntityData merges separate KV entries into a single EntityState.
+func mergeOverwatchEntityData(entityID string, dataMap map[string][]byte) shared.EntityState {
 	state := shared.EntityState{
 		EntityID:   entityID,
 		EntityType: "sensor", // Default type for detection entities
@@ -820,19 +994,22 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 			state.IsLive = isLive
 		}
 
-		// Determine data type from key suffix and merge accordingly
-		if strings.Contains(key, ".detections.objects") {
-			h.mergeDetections(&state, rawData)
-		} else if strings.Contains(key, ".analytics.summary") || strings.Contains(key, ".analytics.c4isr_summary") {
-			h.mergeAnalytics(&state, rawData)
-		} else if strings.Contains(key, ".c4isr.threat_intelligence") {
-			h.mergeThreatIntel(&state, rawData)
-		} else if strings.HasSuffix(key, ".mavlink") {
-			// NEW: Handle flattened mavlink data (entity_id.mavlink)
-			h.mergeNewMAVLinkData(&state, rawData)
-		} else if !strings.Contains(key, ".") {
-			// Single-key entity state (like device.1.1 or full EntityState)
-			h.mergeFullState(&state, rawData)
+		parsed, ok := parseOverwatchKVKey(key)
+		if !ok {
+			continue
+		}
+
+		switch parsed.Kind {
+		case overwatchKVKindDetections:
+			mergeDetections(&state, rawData)
+		case overwatchKVKindAnalytics:
+			mergeAnalytics(&state, rawData)
+		case overwatchKVKindThreatIntel:
+			mergeThreatIntel(&state, rawData)
+		case overwatchKVKindMAVLink:
+			mergeNewMAVLinkData(&state, rawData)
+		case overwatchKVKindFullState:
+			mergeFullState(&state, rawData)
 		}
 	}
 
@@ -842,7 +1019,7 @@ func (h *OverwatchHandler) mergeEntityData(entityID string, dataMap map[string][
 // mergeDetections merges detection data into EntityState.
 // Supports both old format (tracked_objects with avg_confidence/threat_level)
 // and new format (objects with confidence/bbox/cx/cy/dx/dy).
-func (h *OverwatchHandler) mergeDetections(state *shared.EntityState, data map[string]interface{}) {
+func mergeDetections(state *shared.EntityState, data map[string]interface{}) {
 	// Try "objects" (new format) first, then "tracked_objects" (old)
 	trackedObjects, ok := data["objects"].(map[string]interface{})
 	if !ok {
@@ -951,7 +1128,7 @@ func (h *OverwatchHandler) mergeDetections(state *shared.EntityState, data map[s
 }
 
 // mergeAnalytics merges analytics data into EntityState
-func (h *OverwatchHandler) mergeAnalytics(state *shared.EntityState, data map[string]interface{}) {
+func mergeAnalytics(state *shared.EntityState, data map[string]interface{}) {
 	analyticsState := &shared.AnalyticsState{
 		Timestamp: time.Now(),
 	}
@@ -999,7 +1176,7 @@ func (h *OverwatchHandler) mergeAnalytics(state *shared.EntityState, data map[st
 }
 
 // mergeThreatIntel merges threat intelligence data into EntityState
-func (h *OverwatchHandler) mergeThreatIntel(state *shared.EntityState, data map[string]interface{}) {
+func mergeThreatIntel(state *shared.EntityState, data map[string]interface{}) {
 	threatIntel := &shared.ThreatIntelState{
 		Timestamp: time.Now(),
 	}
@@ -1033,7 +1210,7 @@ func (h *OverwatchHandler) mergeThreatIntel(state *shared.EntityState, data map[
 }
 
 // mergeFullState merges full entity state data (Python + TelemetryWorker consolidated format)
-func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[string]interface{}) {
+func mergeFullState(state *shared.EntityState, data map[string]interface{}) {
 	// Extract core fields (check both org_id and organization_id)
 	if orgID, ok := data["org_id"].(string); ok && orgID != "" {
 		state.OrgID = orgID
@@ -1078,7 +1255,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	if detectionsData, ok := data["detections"].(map[string]interface{}); ok {
 		// Pass the whole detections map — mergeDetections handles both
 		// "objects" (new) and "tracked_objects" (old), plus detection-level metadata
-		h.mergeDetections(state, detectionsData)
+		mergeDetections(state, detectionsData)
 		objectCount := 0
 		if state.Detections != nil {
 			objectCount = len(state.Detections.TrackedObjects)
@@ -1087,7 +1264,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 
 		// Check for analytics nested inside detections
 		if analyticsData, ok := detectionsData["analytics"].(map[string]interface{}); ok {
-			h.mergeAnalytics(state, analyticsData)
+			mergeAnalytics(state, analyticsData)
 			logger.Debugw("[Overwatch] Merged detections.analytics")
 		}
 	}
@@ -1095,21 +1272,21 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 	// Python analytics format (OLD): top-level analytics.summary
 	if analyticsData, ok := data["analytics"].(map[string]interface{}); ok {
 		if summaryData, ok := analyticsData["summary"].(map[string]interface{}); ok {
-			h.mergeAnalytics(state, summaryData)
+			mergeAnalytics(state, summaryData)
 			logger.Debugw("[Overwatch] Merged analytics.summary")
 		}
 	}
 
 	// Python threat intelligence format (NEW): top-level threat_intelligence
 	if threatData, ok := data["threat_intelligence"].(map[string]interface{}); ok {
-		h.mergeThreatIntel(state, threatData)
+		mergeThreatIntel(state, threatData)
 		logger.Debugw("[Overwatch] Merged threat_intelligence")
 	}
 
 	// Python C4ISR format (OLD): c4isr.threat_intelligence
 	if c4isrData, ok := data["c4isr"].(map[string]interface{}); ok {
 		if threatData, ok := c4isrData["threat_intelligence"].(map[string]interface{}); ok {
-			h.mergeThreatIntel(state, threatData)
+			mergeThreatIntel(state, threatData)
 			logger.Debugw("[Overwatch] Merged c4isr.threat_intelligence")
 		}
 	}
@@ -1143,7 +1320,7 @@ func (h *OverwatchHandler) mergeFullState(state *shared.EntityState, data map[st
 // MAVLink signal merge functions for modular telemetry streams
 
 // mergeNewMAVLinkData merges the new flattened mavlink data format
-func (h *OverwatchHandler) mergeNewMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
+func mergeNewMAVLinkData(state *shared.EntityState, data map[string]interface{}) {
 	logger.Debugw("[Overwatch] Merging new flattened MAVLink data", "entity_id", state.EntityID)
 
 	// Extract SystemID and ComponentID
