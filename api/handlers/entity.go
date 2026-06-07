@@ -60,15 +60,19 @@ type DeletedOutput struct {
 
 func (h *EntityHandler) Register(api huma.API) {
 	huma.Register(api, huma.Operation{
-		OperationID: "create-entity",
-		Method:      http.MethodPost,
-		Path:        "/v1/organizations/{org_id}/entities",
-		Summary:     "Create entity",
-		Description: "Create a new entity within an organization",
-		Tags:        []string{"Entities"},
+		OperationID:   "create-entity",
+		Method:        http.MethodPost,
+		Path:          "/v1/organizations/{org_id}/entities",
+		Summary:       "Create entity",
+		Description:   "Create a new entity within an organization",
+		Tags:          []string{"Entities"},
 		DefaultStatus: http.StatusCreated,
-		Security: []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+		Security:      []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
 	}, func(ctx context.Context, input *CreateEntityInput) (*EntityOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		entity, err := h.service.CreateEntity(input.OrgID, &input.Body)
 		if err != nil {
 			if errors.Is(err, shared.ErrInvalidInput) {
@@ -89,6 +93,10 @@ func (h *EntityHandler) Register(api huma.API) {
 		Tags:        []string{"Entities"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*EntityListOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		entities, err := h.service.ListEntities(input.OrgID)
 		if err != nil {
 			logger.Errorw("Failed to list entities", "error", err, "org_id", input.OrgID)
@@ -109,6 +117,10 @@ func (h *EntityHandler) Register(api huma.API) {
 		Tags:        []string{"Entities"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
 	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*EntityOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		entity, err := h.service.GetEntity(input.OrgID, input.EntityID)
 		if err != nil {
 			if errors.Is(err, shared.ErrNotFound) {
@@ -129,6 +141,10 @@ func (h *EntityHandler) Register(api huma.API) {
 		Tags:        []string{"Entities"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
 	}, func(ctx context.Context, input *UpdateEntityInput) (*EntityOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		updates := buildEntityUpdates(&input.Body)
 		entity, err := h.service.UpdateEntity(input.OrgID, input.EntityID, updates)
 		if err != nil {
@@ -153,6 +169,10 @@ func (h *EntityHandler) Register(api huma.API) {
 		Tags:        []string{"Entities"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
 	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*DeletedOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		err := h.service.DeleteEntity(input.OrgID, input.EntityID)
 		if err != nil {
 			if errors.Is(err, shared.ErrNotFound) {

@@ -48,6 +48,10 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		DefaultStatus: http.StatusCreated,
 		Security:      []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
 	}, func(ctx context.Context, input *CreateOrgInput) (*OrgOutput, error) {
+		if err := requireAdminAccess(ctx); err != nil {
+			return nil, err
+		}
+
 		org, err := h.service.CreateOrganization(&input.Body)
 		if err != nil {
 			logger.Errorw("Failed to create organization", "error", err)
@@ -65,6 +69,22 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Tags:        []string{"Organizations"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
 	}, func(ctx context.Context, input *struct{}) (*OrgListOutput, error) {
+		if !hasAllOrgAccess(ctx) {
+			orgID := scopedOrgID(ctx)
+			if orgID == "" {
+				return nil, huma.Error403Forbidden("API key is not authorized for any organization")
+			}
+			org, err := h.service.GetOrganization(orgID)
+			if err != nil {
+				if errors.Is(err, shared.ErrNotFound) {
+					return nil, huma.Error404NotFound("Organization not found")
+				}
+				logger.Errorw("Failed to get scoped organization", "error", err, "org_id", orgID)
+				return nil, huma.Error500InternalServerError("An internal error occurred")
+			}
+			return &OrgListOutput{Body: []ontology.Organization{*org}}, nil
+		}
+
 		orgs, err := h.service.ListOrganizations()
 		if err != nil {
 			logger.Errorw("Failed to list organizations", "error", err)
@@ -85,6 +105,10 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Tags:        []string{"Organizations"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*OrgOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		org, err := h.service.GetOrganization(input.OrgID)
 		if err != nil {
 			if errors.Is(err, shared.ErrNotFound) {
@@ -105,6 +129,10 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Tags:        []string{"Organizations"},
 		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*DeletedOutput, error) {
+		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
+			return nil, err
+		}
+
 		err := h.service.DeleteOrganization(input.OrgID)
 		if err != nil {
 			if errors.Is(err, shared.ErrNotFound) {
