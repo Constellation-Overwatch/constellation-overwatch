@@ -80,10 +80,10 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 		}
 	}
 
-	// Check if entity is registered - auto-register MAVLink entities
+	// Reject unknown entity IDs instead of growing registry/cache from arbitrary telemetry.
 	if !w.registry.IsRegistered(entityID) {
-		logger.Infow("Auto-registering MAVLink entity", "worker", w.Name(), "entity_id", entityID)
-		w.registry.Register(entityID)
+		logger.Warnw("Rejected telemetry for unregistered entity", "worker", w.Name(), "entity_id", entityID, "org_id", orgID)
+		return nil
 	}
 
 	// Get or create entity state
@@ -217,27 +217,7 @@ func (w *TelemetryWorker) initializeEntityFromDB(entityID, orgID string) (*share
 	)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		// Entity not in DB - validate entity_id before creating minimal state
-		if err := validateEntityID(entityID); err != nil {
-			return nil, fmt.Errorf("invalid entity_id '%s': %w", entityID, err)
-		}
-
-		logger.Infow("Entity not in database, creating new state", "component", "TelemetryWorker", "entity_id", entityID)
-		state = shared.EntityState{
-			EntityID:   entityID,
-			OrgID:      orgID,
-			Status:     "unknown",
-			Priority:   "normal",
-			IsLive:     true,
-			Source:     "mavlink",
-			Components: make(map[string]any),
-			Aliases:    make(map[string]string),
-			Tags:       make([]string, 0),
-			Metadata:   make(map[string]any),
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-		return &state, nil
+		return nil, fmt.Errorf("entity %s: %w", entityID, shared.ErrNotFound)
 	}
 
 	if err != nil {
