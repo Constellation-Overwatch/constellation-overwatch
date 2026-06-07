@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,16 @@ type TelemetryWorker struct {
 	cacheMutex     sync.RWMutex
 	staleThreshold time.Duration
 }
+
+const (
+	maxUint8  = 1<<8 - 1
+	maxUint16 = 1<<16 - 1
+	maxUint32 = 1<<32 - 1
+	minInt16  = -1 << 15
+	maxInt16  = 1<<15 - 1
+	minInt32  = -1 << 31
+	maxInt32  = 1<<31 - 1
+)
 
 // NewTelemetryWorker creates a new telemetry worker with database and KV store access
 func NewTelemetryWorker(nc *nats.Conn, js nats.JetStreamContext, db *sql.DB, kv nats.KeyValue, registry *EntityRegistry) *TelemetryWorker {
@@ -483,21 +494,21 @@ func (w *TelemetryWorker) updateHeartbeat(state *shared.EntityState, data map[st
 		state.VehicleStatus = &shared.VehicleStatusState{}
 	}
 
-	if customMode, ok := getFloat64(data, "custom_mode"); ok {
-		state.VehicleStatus.CustomMode = uint32(customMode)
-		state.VehicleStatus.Mode = decodeArduPilotMode(uint32(customMode))
+	if customMode, ok := getUint32(data, "custom_mode"); ok {
+		state.VehicleStatus.CustomMode = customMode
+		state.VehicleStatus.Mode = decodeArduPilotMode(customMode)
 	}
-	if baseMode, ok := getFloat64(data, "base_mode"); ok {
-		state.VehicleStatus.Armed = (uint8(baseMode) & 128) != 0
+	if baseMode, ok := getUint8(data, "base_mode"); ok {
+		state.VehicleStatus.Armed = (baseMode & 128) != 0
 	}
-	if autopilot, ok := getFloat64(data, "autopilot"); ok {
-		state.VehicleStatus.Autopilot = uint8(autopilot)
+	if autopilot, ok := getUint8(data, "autopilot"); ok {
+		state.VehicleStatus.Autopilot = autopilot
 	}
-	if systemStatus, ok := getFloat64(data, "system_status"); ok {
-		state.VehicleStatus.SystemStatus = uint8(systemStatus)
+	if systemStatus, ok := getUint8(data, "system_status"); ok {
+		state.VehicleStatus.SystemStatus = systemStatus
 	}
-	if vehicleType, ok := getFloat64(data, "type"); ok {
-		state.VehicleStatus.VehicleType = uint8(vehicleType)
+	if vehicleType, ok := getUint8(data, "type"); ok {
+		state.VehicleStatus.VehicleType = vehicleType
 	}
 
 	state.VehicleStatus.Timestamp = ts
@@ -511,14 +522,14 @@ func (w *TelemetryWorker) updateSysStatus(state *shared.EntityState, data map[st
 		state.Power = &shared.PowerState{}
 	}
 
-	if load, ok := getFloat64(data, "load"); ok {
-		state.VehicleStatus.Load = uint16(load)
+	if load, ok := getUint16(data, "load"); ok {
+		state.VehicleStatus.Load = load
 	}
-	if sensorsEnabled, ok := getFloat64(data, "onboard_control_sensors_enabled"); ok {
-		state.VehicleStatus.SensorsEnabled = uint32(sensorsEnabled)
+	if sensorsEnabled, ok := getUint32(data, "onboard_control_sensors_enabled"); ok {
+		state.VehicleStatus.SensorsEnabled = sensorsEnabled
 	}
-	if sensorsHealth, ok := getFloat64(data, "onboard_control_sensors_health"); ok {
-		state.VehicleStatus.SensorsHealth = uint32(sensorsHealth)
+	if sensorsHealth, ok := getUint32(data, "onboard_control_sensors_health"); ok {
+		state.VehicleStatus.SensorsHealth = sensorsHealth
 	}
 
 	if voltage, ok := getFloat64(data, "voltage_battery"); ok {
@@ -527,8 +538,8 @@ func (w *TelemetryWorker) updateSysStatus(state *shared.EntityState, data map[st
 	if current, ok := getFloat64(data, "current_battery"); ok {
 		state.Power.Current = current
 	}
-	if remaining, ok := getFloat64(data, "battery_remaining"); ok {
-		state.Power.BatteryRemain = int8(remaining)
+	if remaining, ok := getBatteryRemaining(data, "battery_remaining"); ok {
+		state.Power.BatteryRemain = remaining
 	}
 
 	state.VehicleStatus.Timestamp = ts
@@ -558,10 +569,10 @@ func (w *TelemetryWorker) updateGPSRaw(state *shared.EntityState, data map[strin
 	if epv, ok := getFloat64(data, "epv"); ok {
 		state.Position.Global.AccuracyV = epv / 100.0
 	}
-	if satsVisible, ok := getFloat64(data, "satellites_visible"); ok {
+	if satsVisible, ok := getUint8(data, "satellites_visible"); ok {
 		state.Position.Global.SatellitesVisible = int(satsVisible)
 	}
-	if fixType, ok := getFloat64(data, "fix_type"); ok {
+	if fixType, ok := getUint8(data, "fix_type"); ok {
 		state.Position.Global.FixType = int(fixType)
 	}
 
@@ -693,14 +704,14 @@ func (w *TelemetryWorker) updateVFR(state *shared.EntityState, data map[string]a
 	if groundspeed, ok := getFloat64(data, "groundspeed"); ok {
 		state.VFR.Groundspeed = groundspeed
 	}
-	if heading, ok := getFloat64(data, "heading"); ok {
-		state.VFR.Heading = int16(heading)
+	if heading, ok := getInt16InRange(data, "heading", 0, 360); ok {
+		state.VFR.Heading = heading
 	}
 	if climb, ok := getFloat64(data, "climb"); ok {
 		state.VFR.ClimbRate = climb
 	}
-	if throttle, ok := getFloat64(data, "throttle"); ok {
-		state.VFR.Throttle = uint16(throttle)
+	if throttle, ok := getUint16InRange(data, "throttle", 100); ok {
+		state.VFR.Throttle = throttle
 	}
 	if alt, ok := getFloat64(data, "alt"); ok {
 		state.VFR.Altitude = alt
@@ -714,8 +725,8 @@ func (w *TelemetryWorker) updateMission(state *shared.EntityState, data map[stri
 		state.Mission = &shared.MissionState{}
 	}
 
-	if seq, ok := getFloat64(data, "seq"); ok {
-		state.Mission.CurrentWaypoint = uint16(seq)
+	if seq, ok := getUint16(data, "seq"); ok {
+		state.Mission.CurrentWaypoint = seq
 	}
 
 	state.Mission.Timestamp = ts
@@ -726,28 +737,40 @@ func (w *TelemetryWorker) updateBattery(state *shared.EntityState, data map[stri
 		state.Power = &shared.PowerState{}
 	}
 
-	if remaining, ok := getFloat64(data, "battery_remaining"); ok {
-		state.Power.BatteryRemain = int8(remaining)
+	if remaining, ok := getBatteryRemaining(data, "battery_remaining"); ok {
+		state.Power.BatteryRemain = remaining
 	}
 	if current, ok := getFloat64(data, "current_battery"); ok {
 		state.Power.Current = current / 100.0 // MAVLink sends in cA
 	}
-	if consumed, ok := getFloat64(data, "current_consumed"); ok {
-		state.Power.Consumed = int32(consumed)
+	if consumed, ok := getInt32(data, "current_consumed"); ok {
+		state.Power.Consumed = consumed
 	}
-	if energy, ok := getFloat64(data, "energy_consumed"); ok {
-		state.Power.EnergyConsumed = int32(energy)
+	if energy, ok := getInt32(data, "energy_consumed"); ok {
+		state.Power.EnergyConsumed = energy
 	}
-	if temp, ok := getFloat64(data, "temperature"); ok {
-		state.Power.Temperature = int16(temp)
+	if temp, ok := getInt16(data, "temperature"); ok {
+		state.Power.Temperature = temp
 	}
 
 	if voltages, ok := data["voltages"].([]any); ok {
-		state.Power.Cells = make([]uint16, len(voltages))
+		cells := make([]uint16, len(voltages))
+		valid := true
 		for i, v := range voltages {
-			if voltage, ok := v.(float64); ok {
-				state.Power.Cells[i] = uint16(voltage)
+			voltage, ok := v.(float64)
+			if !ok {
+				valid = false
+				break
 			}
+			cell, ok := checkedUint16(fmt.Sprintf("voltages[%d]", i), voltage)
+			if !ok {
+				valid = false
+				break
+			}
+			cells[i] = cell
+		}
+		if valid {
+			state.Power.Cells = cells
 		}
 	}
 
@@ -762,8 +785,8 @@ func (w *TelemetryWorker) updateServos(state *shared.EntityState, data map[strin
 	state.Actuators.Servos = make([]uint16, 8)
 	for i := 1; i <= 8; i++ {
 		key := fmt.Sprintf("servo%d_raw", i)
-		if val, ok := getFloat64(data, key); ok {
-			state.Actuators.Servos[i-1] = uint16(val)
+		if val, ok := getUint16(data, key); ok {
+			state.Actuators.Servos[i-1] = val
 		}
 	}
 
@@ -781,8 +804,8 @@ func (w *TelemetryWorker) updatePressure(state *shared.EntityState, data map[str
 	if pressDiff, ok := getFloat64(data, "press_diff"); ok {
 		state.Environment.PressureDiff = pressDiff
 	}
-	if temp, ok := getFloat64(data, "temperature"); ok {
-		state.Environment.Temperature = int16(temp)
+	if temp, ok := getInt16(data, "temperature"); ok {
+		state.Environment.Temperature = temp
 	}
 
 	state.Environment.Timestamp = ts
@@ -793,11 +816,11 @@ func (w *TelemetryWorker) updateExtendedSysState(state *shared.EntityState, data
 		state.VehicleStatus = &shared.VehicleStatusState{}
 	}
 
-	if landedState, ok := getFloat64(data, "landed_state"); ok {
-		state.VehicleStatus.LandedState = uint8(landedState)
+	if landedState, ok := getUint8(data, "landed_state"); ok {
+		state.VehicleStatus.LandedState = landedState
 	}
-	if vtolState, ok := getFloat64(data, "vtol_state"); ok {
-		state.VehicleStatus.VTOLState = uint8(vtolState)
+	if vtolState, ok := getUint8(data, "vtol_state"); ok {
+		state.VehicleStatus.VTOLState = vtolState
 	}
 
 	state.VehicleStatus.Timestamp = ts
@@ -814,6 +837,110 @@ func getFloat64(data map[string]any, key string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func getUint8(data map[string]any, key string) (uint8, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	return checkedUint8(key, value)
+}
+
+func getUint16(data map[string]any, key string) (uint16, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	return checkedUint16(key, value)
+}
+
+func getUint16InRange(data map[string]any, key string, max uint16) (uint16, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedUintRange(key, value, uint64(max))
+	return uint16(converted), ok
+}
+
+func getUint32(data map[string]any, key string) (uint32, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedUintRange(key, value, maxUint32)
+	return uint32(converted), ok
+}
+
+func getInt16(data map[string]any, key string) (int16, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	return checkedInt16(key, value)
+}
+
+func getInt16InRange(data map[string]any, key string, min, max int16) (int16, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedIntRange(key, value, int64(min), int64(max))
+	return int16(converted), ok
+}
+
+func getInt32(data map[string]any, key string) (int32, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedIntRange(key, value, minInt32, maxInt32)
+	return int32(converted), ok
+}
+
+func getBatteryRemaining(data map[string]any, key string) (int8, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedIntRange(key, value, -1, 100)
+	return int8(converted), ok
+}
+
+func checkedUint8(key string, value float64) (uint8, bool) {
+	converted, ok := checkedUintRange(key, value, maxUint8)
+	return uint8(converted), ok
+}
+
+func checkedUint16(key string, value float64) (uint16, bool) {
+	converted, ok := checkedUintRange(key, value, maxUint16)
+	return uint16(converted), ok
+}
+
+func checkedInt16(key string, value float64) (int16, bool) {
+	converted, ok := checkedIntRange(key, value, minInt16, maxInt16)
+	return int16(converted), ok
+}
+
+func checkedUintRange(key string, value float64, max uint64) (uint64, bool) {
+	if !validInteger(value) || value < 0 || value > float64(max) {
+		logger.Warnw("Rejected out-of-range MAVLink unsigned integer", "field", key, "value", value, "min", 0, "max", max)
+		return 0, false
+	}
+	return uint64(value), true
+}
+
+func checkedIntRange(key string, value float64, min, max int64) (int64, bool) {
+	if !validInteger(value) || value < float64(min) || value > float64(max) {
+		logger.Warnw("Rejected out-of-range MAVLink integer", "field", key, "value", value, "min", min, "max", max)
+		return 0, false
+	}
+	return int64(value), true
+}
+
+func validInteger(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && math.Trunc(value) == value
 }
 
 func parseFloat(s string) float64 {
