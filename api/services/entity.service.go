@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -104,11 +105,9 @@ func (s *EntityService) CreateEntity(orgID string, req *ontology.CreateEntityReq
 		}
 	}
 
-	// Publish entity created event
-	go s.publishEntityEvent(entity, shared.EventTypeCreated)
-
-	// Sync to KV store
-	go s.syncToKV(entity)
+	if err := s.applyEntitySideEffects(entity, shared.EventTypeCreated); err != nil {
+		return nil, err
+	}
 
 	return entity, nil
 }
@@ -245,11 +244,9 @@ func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]
 		return nil, err
 	}
 
-	// Publish entity updated event
-	go s.publishEntityEvent(entity, shared.EventTypeUpdated)
-
-	// Sync to KV store
-	go s.syncToKV(entity)
+	if err := s.applyEntitySideEffects(entity, shared.EventTypeUpdated); err != nil {
+		return nil, err
+	}
 
 	return entity, nil
 }
@@ -277,11 +274,9 @@ func (s *EntityService) DeleteEntity(orgID, entityID string) error {
 		return fmt.Errorf("entity: %w", shared.ErrNotFound)
 	}
 
-	// Publish entity deleted event
-	go s.publishEntityEvent(entity, shared.EventTypeDeleted)
-
-	// Remove from KV store
-	go s.removeFromKV(entity.EntityID)
+	if err := s.applyEntitySideEffects(entity, shared.EventTypeDeleted); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -296,16 +291,28 @@ func (s *EntityService) UpdateEntityStatus(orgID, entityID, status string) error
 		return err
 	}
 
-	// Publish status change event
-	go s.publishEntityEvent(entity, shared.EventTypeStatus)
+	if err := s.publishEntityEvent(entity, shared.EventTypeStatus); err != nil {
+		return err
+	}
 
 	return nil
 }
 
-func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType string) {
+func (s *EntityService) applyEntitySideEffects(entity *ontology.Entity, eventType string) error {
+	if err := s.publishEntityEvent(entity, eventType); err != nil {
+		return err
+	}
+
+	if eventType == shared.EventTypeDeleted {
+		return s.removeFromKV(entity.EntityID)
+	}
+	return s.syncToKV(entity)
+}
+
+func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType string) error {
 	if s.nats == nil || s.nats.JetStream() == nil {
 		logger.Warn("NATS not available for publishing event")
-		return
+		return nil
 	}
 
 	var subjectFn func(string) string
@@ -344,17 +351,18 @@ func (s *EntityService) publishEntityEvent(entity *ontology.Entity, eventType st
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		logger.Error("Failed to marshal entity event", zap.Error(err))
-		return
+		return fmt.Errorf("failed to marshal entity event: %w", err)
 	}
 
 	msgID := fmt.Sprintf("%s-%s-%d", entity.EntityID, eventType, time.Now().UnixNano())
 
 	if err := s.nats.PublishWithDedup(event.Subject, data, msgID); err != nil {
-		logger.Error("Failed to publish entity event", zap.Error(err))
+		return fmt.Errorf("failed to publish entity event: %w", err)
 	} else {
 		logger.Info("Published entity event", zap.String("event_type", eventType), zap.String("subject", event.Subject))
 	}
+
+	return nil
 }
 
 func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error }) (*ontology.Entity, error) {
@@ -409,14 +417,14 @@ func (s *EntityService) scanEntity(scanner interface{ Scan(...interface{}) error
 }
 
 // syncToKV updates the entity state in the KV store
-func (s *EntityService) syncToKV(entity *ontology.Entity) {
+func (s *EntityService) syncToKV(entity *ontology.Entity) error {
 	if s.nats == nil {
-		return
+		return nil
 	}
 
 	kv := s.nats.KeyValue()
 	if kv == nil {
-		return
+		return nil
 	}
 
 	// Get existing state if possible to preserve telemetry
@@ -465,33 +473,39 @@ func (s *EntityService) syncToKV(entity *ontology.Entity) {
 	// Marshal back to JSON
 	data, err := json.Marshal(state)
 	if err != nil {
-		logger.Errorw("Failed to marshal entity state for KV", "entity_id", entity.EntityID, "error", err)
-		return
+		return fmt.Errorf("failed to marshal entity state for KV: %w", err)
 	}
 
 	// Put to KV
 	if _, err := kv.Put(key, data); err != nil {
-		logger.Errorw("Failed to put entity to KV", "entity_id", entity.EntityID, "error", err)
+		return fmt.Errorf("failed to put entity to KV: %w", err)
 	} else {
 		logger.Infow("Synced entity to KV", "entity_id", entity.EntityID)
 	}
+
+	return nil
 }
 
 // removeFromKV removes the entity from the KV store
-func (s *EntityService) removeFromKV(entityID string) {
+func (s *EntityService) removeFromKV(entityID string) error {
 	if s.nats == nil {
-		return
+		return nil
 	}
 
 	kv := s.nats.KeyValue()
 	if kv == nil {
-		return
+		return nil
 	}
 
 	key := shared.EntityKey(entityID)
 	if err := kv.Delete(key); err != nil {
-		logger.Errorw("Failed to delete entity from KV", "entity_id", entityID, "error", err)
+		if errors.Is(err, nats.ErrKeyNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed to delete entity from KV: %w", err)
 	} else {
 		logger.Infow("Removed entity from KV", "entity_id", entityID)
 	}
+
+	return nil
 }
