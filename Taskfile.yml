@@ -3,6 +3,9 @@ version: "3"
 vars:
   BINARY_NAME: overwatch
   DOCKER_IMAGE: constellation-overwatch:latest
+  SERVER_CMD: go run ./cmd/microlith/main.go start
+  DEV_PROXY: http://localhost:8080
+  TEMPL: go tool templ
 
 tasks:
   build:
@@ -21,7 +24,7 @@ tasks:
   tui:
     desc: Run with TUI dashboard
     cmds:
-      - go run ./cmd/microlith/main.go start --tui
+      - "{{.SERVER_CMD}} --tui"
 
   build-tui:
     desc: Build binary and run TUI
@@ -54,7 +57,6 @@ tasks:
       - rm -rf bin/
       - rm -rf data/
       - rm -rf logs/
-      - rm -rf docs/
 
   generate-certs:
     desc: Generate self-signed certificates for development
@@ -70,27 +72,27 @@ tasks:
     desc: Generate templ files
     cmds:
       - echo "Generating templ files..."
-      - $(go env GOPATH)/bin/templ generate
+      - "{{.TEMPL}} generate"
 
   templ-clean:
     desc: Clean templ cache and regenerate
     cmds:
       - echo "Cleaning templ cache..."
-      - rm -rf /var/folders/fw/*/T/templ_* 2>/dev/null || true
+      - rm -rf ${TMPDIR:-/tmp}/templ_* 2>/dev/null || true
       - rm -rf /tmp/templ_* 2>/dev/null || true
       - echo "Regenerating templ files..."
-      - $(go env GOPATH)/bin/templ generate
+      - "{{.TEMPL}} generate"
 
   templ-watch:
     desc: Start templ file watcher
     cmds:
       - echo "Starting templ file watcher..."
-      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false
+      - '{{.TEMPL}} generate --watch --proxy="{{.DEV_PROXY}}" --open-browser=false'
 
   dev:
     desc: Start development mode (build and run)
     cmds:
-      - $(go env GOPATH)/bin/templ generate --watch --proxy="http://localhost:8080" --open-browser=false --cmd="go run ./cmd/microlith/main.go start"
+      - '{{.TEMPL}} generate --watch --proxy="{{.DEV_PROXY}}" --open-browser=false --cmd="{{.SERVER_CMD}}"'
 
   default:
     desc: Show available tasks
