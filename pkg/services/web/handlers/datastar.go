@@ -6,15 +6,16 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	fleet_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/components"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/go-chi/chi/v5"
 	"github.com/nats-io/nats.go"
 )
@@ -985,6 +986,7 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 	}
 
 	sse := datastar.NewSSE(w, r)
+	var writeMutex sync.Mutex
 
 	sub, err := h.nc.Subscribe(shared.SubjectEntitiesAll, func(msg *nats.Msg) {
 		var event shared.Event
@@ -1012,17 +1014,27 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 				return
 			}
 			component := fleet_components.FleetRow(orgs, *entity)
+			writeMutex.Lock()
 			if event.Type == shared.EventTypeCreated {
-				sse.PatchElementTempl(component,
+				err = sse.PatchElementTempl(component,
 					datastar.WithSelector("#new-fleet-form-row"),
 					datastar.WithModeBefore())
 			} else {
-				sse.PatchElementTempl(component,
+				err = sse.PatchElementTempl(component,
 					datastar.WithSelectorf("#fleet-row-%s", entityID),
 					datastar.WithModeOuter())
 			}
+			writeMutex.Unlock()
+			if err != nil {
+				logger.Debugw("Failed to patch fleet SSE row", "entity_id", entityID, "error", err)
+			}
 		case shared.EventTypeDeleted:
-			sse.RemoveElementf("#fleet-row-%s", entityID)
+			writeMutex.Lock()
+			err := sse.RemoveElementf("#fleet-row-%s", entityID)
+			writeMutex.Unlock()
+			if err != nil {
+				logger.Debugw("Failed to remove fleet SSE row", "entity_id", entityID, "error", err)
+			}
 		}
 	})
 	if err != nil {
@@ -1041,10 +1053,12 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
+			writeMutex.Lock()
 			fmt.Fprintf(w, ": heartbeat\n\n")
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			}
+			writeMutex.Unlock()
 		}
 	}
 }
@@ -1056,6 +1070,7 @@ func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.
 	}
 
 	sse := datastar.NewSSE(w, r)
+	var writeMutex sync.Mutex
 
 	sub, err := h.nc.Subscribe(shared.SubjectOrganizationsAll, func(msg *nats.Msg) {
 		var event shared.Event
@@ -1077,17 +1092,27 @@ func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.
 				return
 			}
 			component := org_components.OrganizationRow(*org, "")
+			writeMutex.Lock()
 			if event.Type == shared.EventTypeCreated {
-				sse.PatchElementTempl(component,
+				err = sse.PatchElementTempl(component,
 					datastar.WithSelector("#new-org-form-row"),
 					datastar.WithModeBefore())
 			} else {
-				sse.PatchElementTempl(component,
+				err = sse.PatchElementTempl(component,
 					datastar.WithSelectorf("#org-row-%s", orgID),
 					datastar.WithModeOuter())
 			}
+			writeMutex.Unlock()
+			if err != nil {
+				logger.Debugw("Failed to patch organization SSE row", "org_id", orgID, "error", err)
+			}
 		case shared.EventTypeDeleted:
-			sse.RemoveElementf("#org-row-%s", orgID)
+			writeMutex.Lock()
+			err := sse.RemoveElementf("#org-row-%s", orgID)
+			writeMutex.Unlock()
+			if err != nil {
+				logger.Debugw("Failed to remove organization SSE row", "org_id", orgID, "error", err)
+			}
 		}
 	})
 	if err != nil {
@@ -1106,10 +1131,12 @@ func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
+			writeMutex.Lock()
 			fmt.Fprintf(w, ": heartbeat\n\n")
 			if flusher, ok := w.(http.Flusher); ok {
 				flusher.Flush()
 			}
+			writeMutex.Unlock()
 		}
 	}
 }
