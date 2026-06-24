@@ -400,13 +400,15 @@ TUI Controls:
 Environment:
   All options can also be set via environment variables or .env file:
   PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
+  NATS_EXTERNAL_ENABLED, NATS_URL, NATS_STREAM_REPLICAS, NATS_JETSTREAM_DOMAIN
+  NATS_OBJECT_STORE_BUCKET
 
   Priority: CLI flags > environment variables > .env file > defaults
 
 Endpoints:
   Web UI      http://localhost:8080
   REST API    http://localhost:8080/api/v1/
-  NATS TCP    nats://localhost:4222
+  NATS TCP    nats://localhost:4222 (embedded mode)
   Health      http://localhost:8080/health`)
 }
 

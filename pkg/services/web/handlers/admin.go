@@ -185,12 +185,17 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	// If an NKey was generated, register it with the NATS server.
 	if created.NATSPubKey != "" && h.natsEmbedded != nil {
-		perms := embeddednats.BuildNATSPermissions(req.Scopes, orgID)
-		if perms != nil {
-			if err := h.natsEmbedded.AddNKeyUser(created.NATSPubKey, perms); err != nil {
-				logger.Errorf("Failed to register NKey with NATS: %v", err)
-				// Key was created in DB but NATS registration failed -- log but still return the key.
+		if h.natsEmbedded.SupportsNKeyUserManagement() {
+			perms := embeddednats.BuildNATSPermissions(req.Scopes, orgID)
+			if perms != nil {
+				if err := h.natsEmbedded.AddNKeyUser(created.NATSPubKey, perms); err != nil {
+					logger.Errorf("Failed to register NKey with NATS: %v", err)
+					// Key was created in DB but NATS registration failed -- log but still return the key.
+				}
 			}
+		} else {
+			logger.Warnw("Skipping NATS NKey registration; external NATS mode requires out-of-band account/user provisioning",
+				"key_id", created.KeyID)
 		}
 	}
 
@@ -224,8 +229,13 @@ func (h *AdminHandler) HandleRevokeAPIKey(w http.ResponseWriter, r *http.Request
 
 	// Remove NKey from NATS server if present.
 	if natsPubKey != "" && h.natsEmbedded != nil {
-		if err := h.natsEmbedded.RemoveNKeyUser(natsPubKey); err != nil {
-			logger.Errorf("Failed to remove NKey from NATS: %v", err)
+		if h.natsEmbedded.SupportsNKeyUserManagement() {
+			if err := h.natsEmbedded.RemoveNKeyUser(natsPubKey); err != nil {
+				logger.Errorf("Failed to remove NKey from NATS: %v", err)
+			}
+		} else {
+			logger.Warnw("Skipping NATS NKey removal; external NATS mode requires out-of-band account/user provisioning",
+				"key_id", keyID)
 		}
 	}
 

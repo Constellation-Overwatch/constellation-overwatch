@@ -284,6 +284,12 @@ Configuration options:
 * `PORT` - HTTP server port (default: `8080`)
 * `OVERWATCH_DATA_DIR` - Root data directory; DB at `<dir>/db/constellation.db`, NATS at `<dir>/overwatch/` (default: `./data`)
 * `NATS_PORT` - NATS server port (default: `4222`)
+* `NATS_HOST` - Embedded NATS bind address (default: `127.0.0.1`)
+* `NATS_EXTERNAL_ENABLED` / `NATS_URL` - Connect to an externally managed NATS cluster or supercluster instead of starting embedded NATS
+* `NATS_STREAM_REPLICAS` - JetStream replica count for streams, KV, consumers, and object store (default: `1`; use `3` or `5` only with enough JetStream nodes)
+* `NATS_JETSTREAM_DOMAIN` - JetStream domain for embedded or external NATS fabrics when configured
+* `NATS_OBJECT_STORE_BUCKET` - JetStream Object Store bucket for large Constellation artifacts (default: `CONSTELLATION_OBJECTS`)
+* `NATS_OBJECT_STORE_MAX_BYTES` - Object Store capacity reservation (default: `536870912`, 512 MiB)
 
 See `.env.example` for the full list including production overrides.
 
@@ -291,7 +297,7 @@ See `.env.example` for the full list including production overrides.
 
 * **Web UI** - WebAuthn passkey authentication. On first run an admin user is bootstrapped and a registration link is printed to the console.
 * **REST API** - API keys with the `c4_live_` / `c4_test_` prefix, passed via `X-API-Key` header or `Authorization: Bearer c4_live_...`.
-* **NATS** - NKey-based authentication for edge devices.
+* **NATS** - NKey-based authentication for edge devices in embedded mode. External NATS fabrics require account/user provisioning in the NATS deployment.
 
 ```bash
 curl -H "X-API-Key: c4_live_..." http://localhost:8080/api/v1/organizations
@@ -607,7 +613,7 @@ task generate-certs
 **Step 2: Configure environment variables**
 
 ```bash
-NATS_TLS_ENABLED=true
+NATS_ENABLE_TLS=true
 NATS_TLS_CERT=/path/to/server.crt
 NATS_TLS_KEY=/path/to/server.key
 ```

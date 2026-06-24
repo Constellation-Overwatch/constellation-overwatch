@@ -22,7 +22,7 @@ services:
       - NATS_SYS_USER=sys
       - NATS_SYS_PASSWORD=changeme_sys_dev_only
       # TLS Configuration (Enable for production)
-      - NATS_TLS_ENABLED=false
+      - NATS_ENABLE_TLS=false
       # - NATS_TLS_CERT=/app/certs/server.crt
       # - NATS_TLS_KEY=/app/certs/server.key
     healthcheck:

@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,16 +20,33 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	defaultObjectStoreMaxBytes = 512 * 1024 * 1024
+	mb                         = 1024 * 1024
+)
+
 type Config struct {
-	Host            string
-	Port            int
-	DataDir         string
-	MaxMemory       int64
-	MaxFileStore    int64
-	JetStreamDomain string
-	EnableTLS       bool
-	TLSCert         string
-	TLSKey          string
+	Host                   string
+	Port                   int
+	DataDir                string
+	MaxMemory              int64
+	MaxFileStore           int64
+	JetStreamDomain        string
+	EnableTLS              bool
+	TLSCert                string
+	TLSKey                 string
+	TLSCA                  string
+	ExternalEnabled        bool
+	ExternalURL            string
+	Username               string
+	Password               string
+	Token                  string
+	CredentialsFile        string
+	NKeySeedFile           string
+	StreamReplicas         int
+	ObjectStoreBucket      string
+	ObjectStoreMaxBytes    int64
+	ObjectStoreCompression bool
 }
 
 type EmbeddedNATS struct {
@@ -35,12 +54,15 @@ type EmbeddedNATS struct {
 	nc         *nats.Conn
 	js         nats.JetStreamContext
 	kv         nats.KeyValue
+	obj        nats.ObjectStore
 	config     *Config
 	streams    map[string]*StreamConfig
 	mu         sync.Mutex      // protects serverOpts for NKey management
 	serverOpts *server.Options // tracks current opts for ReloadOptions
 	authToken  string          // internal auth token for embedded connections
 }
+
+var ErrExternalNKeyManagement = errors.New("NKey management not supported in external NATS mode")
 
 // NKeyRecord is the minimal data needed to restore a NATS credential on startup.
 type NKeyRecord struct {
@@ -83,23 +105,61 @@ func getEnvInt64(key string, fallback int64) int64 {
 	return fallback
 }
 
+func getEnvBool(key string, fallback bool) bool {
+	if value, ok := os.LookupEnv(key); ok {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "1", "true", "t", "yes", "y", "on":
+			return true
+		case "0", "false", "f", "no", "n", "off":
+			return false
+		}
+	}
+	return fallback
+}
+
 func DefaultConfig() *Config {
+	externalURL := shared.GetEnv("NATS_URL", "")
+	externalFlag := getEnvBool("NATS_EXTERNAL_ENABLED", externalURL != "")
+	externalEnabled := externalFlag || externalURL != ""
+	domainDefault := "constellation"
+	if externalEnabled {
+		domainDefault = ""
+	}
+
 	return &Config{
-		Host:            shared.GetEnv("NATS_HOST", "127.0.0.1"), // Bind to localhost by default
-		Port:            getEnvInt("NATS_PORT", 4222),
-		DataDir:         shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
-		MaxMemory:       getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
-		MaxFileStore:    getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
-		JetStreamDomain: shared.GetEnv("NATS_JETSTREAM_DOMAIN", "constellation"),
-		EnableTLS:       shared.GetEnv("NATS_ENABLE_TLS", "false") == "true",
-		TLSCert:         shared.GetEnv("NATS_TLS_CERT", ""),
-		TLSKey:          shared.GetEnv("NATS_TLS_KEY", ""),
+		Host:                   shared.GetEnv("NATS_HOST", "127.0.0.1"), // Bind to localhost by default
+		Port:                   getEnvInt("NATS_PORT", 4222),
+		DataDir:                shared.GetEnv("OVERWATCH_DATA_DIR", "./data") + "/overwatch",
+		MaxMemory:              getEnvInt64("NATS_MAX_MEMORY", 1024*1024*1024),       // 1GB
+		MaxFileStore:           getEnvInt64("NATS_MAX_FILE_STORE", 2*1024*1024*1024), // 2GB
+		JetStreamDomain:        shared.GetEnv("NATS_JETSTREAM_DOMAIN", domainDefault),
+		EnableTLS:              getEnvBool("NATS_ENABLE_TLS", false),
+		TLSCert:                shared.GetEnv("NATS_TLS_CERT", ""),
+		TLSKey:                 shared.GetEnv("NATS_TLS_KEY", ""),
+		TLSCA:                  shared.GetEnv("NATS_TLS_CA", ""),
+		ExternalEnabled:        externalEnabled,
+		ExternalURL:            externalURL,
+		Username:               shared.GetEnv("NATS_USER", ""),
+		Password:               shared.GetEnv("NATS_PASSWORD", ""),
+		Token:                  shared.GetEnv("NATS_TOKEN", ""),
+		CredentialsFile:        shared.GetEnv("NATS_CREDS", ""),
+		NKeySeedFile:           shared.GetEnv("NATS_NKEY_SEED_FILE", ""),
+		StreamReplicas:         getEnvInt("NATS_STREAM_REPLICAS", 1),
+		ObjectStoreBucket:      shared.GetEnv("NATS_OBJECT_STORE_BUCKET", shared.ObjectStoreBucketConstellation),
+		ObjectStoreMaxBytes:    getEnvInt64("NATS_OBJECT_STORE_MAX_BYTES", defaultObjectStoreMaxBytes),
+		ObjectStoreCompression: getEnvBool("NATS_OBJECT_STORE_COMPRESSION", false),
 	}
 }
 
 func New(cfg *Config) (*EmbeddedNATS, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
+	}
+	if cfg.StreamReplicas < 1 || cfg.StreamReplicas > 5 {
+		return nil, fmt.Errorf("NATS_STREAM_REPLICAS must be between 1 and 5, got %d", cfg.StreamReplicas)
+	}
+	if cfg.ObjectStoreMaxBytes < 0 {
+		return nil, fmt.Errorf("NATS_OBJECT_STORE_MAX_BYTES must be greater than or equal to 0, got %d", cfg.ObjectStoreMaxBytes)
 	}
 
 	return &EmbeddedNATS{
@@ -120,6 +180,9 @@ func (en *EmbeddedNATS) Name() string {
 
 // Start initializes and starts the NATS service (implements Service interface)
 func (en *EmbeddedNATS) Start(ctx context.Context) error {
+	if en.IsExternal() {
+		return en.StartExternal(ctx)
+	}
 	return en.StartEmbedded()
 }
 
@@ -128,10 +191,44 @@ func (en *EmbeddedNATS) Stop(ctx context.Context) error {
 	return en.Shutdown(ctx)
 }
 
+func (en *EmbeddedNATS) IsExternal() bool {
+	return en.config.ExternalEnabled || strings.TrimSpace(en.config.ExternalURL) != ""
+}
+
+func (en *EmbeddedNATS) SupportsNKeyUserManagement() bool {
+	return !en.IsExternal() && en.server != nil && en.serverOpts != nil
+}
+
+func (en *EmbeddedNATS) StartExternal(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(en.config.ExternalURL) == "" {
+		return fmt.Errorf("NATS_URL is required when NATS_EXTERNAL_ENABLED is true")
+	}
+
+	if err := en.connect(en.config.ExternalURL); err != nil {
+		return fmt.Errorf("failed to connect to external NATS: %w", err)
+	}
+
+	if err := en.initializeStreamsAndConsumers(); err != nil {
+		return fmt.Errorf("failed to initialize streams and consumers: %w", err)
+	}
+
+	logger.Infow("External NATS connected",
+		"servers", countNATSURLs(en.config.ExternalURL),
+		"jetstream_domain", en.config.JetStreamDomain,
+		"stream_replicas", en.config.StreamReplicas)
+	return nil
+}
+
 func (en *EmbeddedNATS) StartEmbedded() error {
 	// Ensure the data directory exists before starting NATS
 	if err := os.MkdirAll(en.config.DataDir, 0700); err != nil {
 		return fmt.Errorf("failed to create NATS data directory %s: %w", en.config.DataDir, err)
+	}
+	if err := en.validateEmbeddedStorageBudget(); err != nil {
+		return err
 	}
 
 	// Generate internal auth token for embedded connections.
@@ -200,7 +297,7 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 	en.server = ns
 	en.serverOpts = opts
 
-	if err := en.connect(); err != nil {
+	if err := en.connect(fmt.Sprintf("nats://localhost:%d", en.config.Port)); err != nil {
 		return fmt.Errorf("failed to connect to embedded NATS: %w", err)
 	}
 
@@ -211,8 +308,36 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 
 	logger.Info("Embedded NATS server started",
 		zap.String("host", en.config.Host),
-		zap.Int("port", en.config.Port))
+		zap.Int("port", en.config.Port),
+		zap.Int("stream_replicas", en.config.StreamReplicas))
 	return nil
+}
+
+func (en *EmbeddedNATS) validateEmbeddedStorageBudget() error {
+	if en.config.MaxFileStore <= 0 {
+		return nil
+	}
+
+	required := int64(0)
+	for _, stream := range en.constellationStreamConfigs() {
+		if stream.Storage == nats.FileStorage && stream.MaxBytes > 0 {
+			required += stream.MaxBytes
+		}
+	}
+	required += 512 * mb // CONSTELLATION_GLOBAL_STATE KV bucket.
+	if en.config.ObjectStoreBucket != "" && en.config.ObjectStoreMaxBytes > 0 {
+		required += en.config.ObjectStoreMaxBytes
+	}
+
+	if required <= en.config.MaxFileStore {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"configured JetStream storage reservations (%d bytes) exceed NATS_MAX_FILE_STORE (%d bytes); reduce NATS_OBJECT_STORE_MAX_BYTES or increase NATS_MAX_FILE_STORE",
+		required,
+		en.config.MaxFileStore,
+	)
 }
 
 // initializeStreamsAndConsumers sets up all required streams and consumers
@@ -225,6 +350,12 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 	// Create global state KV bucket
 	if err := en.CreateGlobalStateKV(shared.KVBucketGlobalState); err != nil {
 		return fmt.Errorf("failed to create global state KV bucket: %w", err)
+	}
+
+	if en.config.ObjectStoreBucket != "" {
+		if err := en.CreateObjectStore(en.config.ObjectStoreBucket); err != nil {
+			return fmt.Errorf("failed to create object store %s: %w", en.config.ObjectStoreBucket, err)
+		}
 	}
 
 	// Create durable consumers
@@ -255,11 +386,8 @@ func (en *EmbeddedNATS) AuthToken() string {
 	return en.authToken
 }
 
-func (en *EmbeddedNATS) connect() error {
-	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
-
+func (en *EmbeddedNATS) connect(connectURL string) error {
 	connectOpts := []nats.Option{
-		nats.Token(en.authToken),
 		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
 		nats.PingInterval(20 * time.Second),
@@ -278,16 +406,40 @@ func (en *EmbeddedNATS) connect() error {
 		}),
 	}
 
-	nc, err := nats.Connect(url, connectOpts...)
+	if en.IsExternal() {
+		authOpts, err := en.externalAuthOptions()
+		if err != nil {
+			return err
+		}
+		connectOpts = append(connectOpts, authOpts...)
+	} else {
+		connectOpts = append(connectOpts, nats.Token(en.authToken))
+	}
+	if en.config.EnableTLS {
+		connectOpts = append(connectOpts, nats.Secure())
+	}
+	if en.config.TLSCA != "" {
+		connectOpts = append(connectOpts, nats.RootCAs(en.config.TLSCA))
+	}
+	if en.config.TLSCert != "" && en.config.TLSKey != "" && en.IsExternal() {
+		connectOpts = append(connectOpts, nats.ClientCert(en.config.TLSCert, en.config.TLSKey))
+	}
+
+	nc, err := nats.Connect(connectURL, connectOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 
-	// Create JetStream context with optimized settings for high-throughput telemetry
-	js, err := nc.JetStream(
+	jsOpts := []nats.JSOpt{
 		nats.PublishAsyncMaxPending(256), // Allow more pending async publishes
-		nats.MaxWait(3*time.Second),      // Reduced from default 5s for faster failures
-	)
+		nats.MaxWait(3 * time.Second),    // Reduced from default 5s for faster failures
+	}
+	if en.config.JetStreamDomain != "" {
+		jsOpts = append(jsOpts, nats.Domain(en.config.JetStreamDomain))
+	}
+
+	// Create JetStream context with optimized settings for high-throughput telemetry
+	js, err := nc.JetStream(jsOpts...)
 	if err != nil {
 		nc.Close()
 		return fmt.Errorf("failed to create JetStream context: %w", err)
@@ -296,6 +448,38 @@ func (en *EmbeddedNATS) connect() error {
 	en.nc = nc
 	en.js = js
 	return nil
+}
+
+func (en *EmbeddedNATS) externalAuthOptions() ([]nats.Option, error) {
+	opts := make([]nats.Option, 0, 3)
+	if en.config.CredentialsFile != "" {
+		opts = append(opts, nats.UserCredentials(en.config.CredentialsFile))
+		return opts, nil
+	}
+	if en.config.NKeySeedFile != "" {
+		nkeyOpt, err := nats.NkeyOptionFromSeed(en.config.NKeySeedFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure NATS NKey seed file: %w", err)
+		}
+		opts = append(opts, nkeyOpt)
+	}
+	if en.config.Token != "" {
+		opts = append(opts, nats.Token(en.config.Token))
+	}
+	if en.config.Username != "" || en.config.Password != "" {
+		opts = append(opts, nats.UserInfo(en.config.Username, en.config.Password))
+	}
+	return opts, nil
+}
+
+func countNATSURLs(raw string) int {
+	count := 0
+	for _, part := range strings.Split(raw, ",") {
+		if strings.TrimSpace(part) != "" {
+			count++
+		}
+	}
+	return count
 }
 
 func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
@@ -326,12 +510,14 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 		if _, err = en.js.UpdateStream(config); err != nil {
 			return fmt.Errorf("failed to update stream %s: %w", streamConfig.Name, err)
 		}
-	} else {
+	} else if errors.Is(err, nats.ErrStreamNotFound) {
 		// Stream doesn't exist, create it
 		if _, err = en.js.AddStream(config); err != nil {
 			return fmt.Errorf("failed to add stream %s: %w", streamConfig.Name, err)
 		}
 		logger.Debug("Created stream", zap.String("stream", streamConfig.Name))
+	} else {
+		return fmt.Errorf("failed to get stream %s: %w", streamConfig.Name, err)
 	}
 
 	en.streams[streamConfig.Name] = streamConfig
@@ -340,92 +526,7 @@ func (en *EmbeddedNATS) AddStream(streamConfig *StreamConfig) error {
 }
 
 func (en *EmbeddedNATS) CreateConstellationStreams() error {
-	streams := []StreamConfig{
-		{
-			Name:            "CONSTELLATION_ENTITIES",
-			Subjects:        []string{"constellation.entities.>"},
-			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         100000,
-			MaxBytes:        256 * 1024 * 1024,  // 256MB
-			MaxAge:          7 * 24 * time.Hour, // 7 days
-			MaxMsgSize:      1024 * 1024,        // 1MB
-			Replicas:        1,
-			DuplicateWindow: 2 * time.Minute,
-			AllowRollup:     true,
-			AllowDirect:     true,
-			DiscardPolicy:   nats.DiscardOld,
-		},
-		{
-			Name:            "CONSTELLATION_EVENTS",
-			Subjects:        []string{"constellation.events.>"},
-			Retention:       nats.WorkQueuePolicy, // Events consumed once
-			MaxMsgs:         50000,
-			MaxBytes:        128 * 1024 * 1024, // 128MB
-			MaxAge:          24 * time.Hour,
-			MaxMsgSize:      256 * 1024, // 256KB
-			Replicas:        1,
-			DuplicateWindow: 2 * time.Minute,
-			AllowRollup:     false,
-			AllowDirect:     true,
-			DiscardPolicy:   nats.DiscardOld,
-		},
-		{
-			Name:            "CONSTELLATION_TELEMETRY",
-			Subjects:        []string{"constellation.telemetry.>"},
-			Retention:       nats.LimitsPolicy, // Keep based on limits (not consumer interest)
-			MaxMsgs:         100000,            // Increased for high-frequency telemetry
-			MaxBytes:        256 * 1024 * 1024, // 256MB (increased from 64MB)
-			MaxAge:          2 * time.Hour,     // Increased from 1 hour
-			MaxMsgSize:      128 * 1024,        // 128KB (increased from 64KB for MAVLink messages)
-			Replicas:        1,
-			DuplicateWindow: 30 * time.Second,
-			AllowRollup:     true,
-			AllowDirect:     true,
-			DiscardPolicy:   nats.DiscardOld,
-		},
-		{
-			Name:            "CONSTELLATION_ORGANIZATIONS",
-			Subjects:        []string{"constellation.organizations.>"},
-			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         10000,
-			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour, // 7 days
-			MaxMsgSize:      256 * 1024,         // 256KB
-			Replicas:        1,
-			DuplicateWindow: 2 * time.Minute,
-			AllowRollup:     false,
-			AllowDirect:     true,
-			DiscardPolicy:   nats.DiscardOld,
-		},
-		{
-			Name:            "CONSTELLATION_COMMANDS",
-			Subjects:        []string{"constellation.commands.>"},
-			Retention:       nats.WorkQueuePolicy,
-			MaxMsgs:         10000,
-			MaxBytes:        32 * 1024 * 1024, // 32MB
-			MaxAge:          15 * time.Minute,
-			MaxMsgSize:      32 * 1024, // 32KB
-			Replicas:        1,
-			DuplicateWindow: 1 * time.Minute,
-			AllowRollup:     false,
-			AllowDirect:     false,           // Commands must go through stream
-			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
-		},
-		{
-			Name:            "CONSTELLATION_AGENTOPS",
-			Subjects:        []string{"constellation.agentops.>"},
-			Retention:       nats.LimitsPolicy,
-			MaxMsgs:         50000,
-			MaxBytes:        128 * 1024 * 1024,
-			MaxAge:          7 * 24 * time.Hour,
-			MaxMsgSize:      256 * 1024,
-			Replicas:        1,
-			DuplicateWindow: 2 * time.Minute,
-			AllowRollup:     false,
-			AllowDirect:     true,
-			DiscardPolicy:   nats.DiscardOld,
-		},
-	}
+	streams := en.constellationStreamConfigs()
 
 	for _, stream := range streams {
 		if err := en.AddStream(&stream); err != nil {
@@ -434,6 +535,102 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 	}
 
 	return nil
+}
+
+func (en *EmbeddedNATS) constellationStreamConfigs() []StreamConfig {
+	replicas := en.config.StreamReplicas
+	return []StreamConfig{
+		{
+			Name:            "CONSTELLATION_ENTITIES",
+			Subjects:        []string{"constellation.entities.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         100000,
+			MaxBytes:        256 * 1024 * 1024,  // 256MB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      1024 * 1024,        // 1MB
+			Replicas:        replicas,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     true,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+		{
+			Name:            "CONSTELLATION_EVENTS",
+			Subjects:        []string{"constellation.events.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.WorkQueuePolicy, // Events consumed once
+			MaxMsgs:         50000,
+			MaxBytes:        128 * 1024 * 1024, // 128MB
+			MaxAge:          24 * time.Hour,
+			MaxMsgSize:      256 * 1024, // 256KB
+			Replicas:        replicas,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+		{
+			Name:            "CONSTELLATION_TELEMETRY",
+			Subjects:        []string{"constellation.telemetry.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.LimitsPolicy, // Keep based on limits (not consumer interest)
+			MaxMsgs:         100000,            // Increased for high-frequency telemetry
+			MaxBytes:        256 * 1024 * 1024, // 256MB (increased from 64MB)
+			MaxAge:          2 * time.Hour,     // Increased from 1 hour
+			MaxMsgSize:      128 * 1024,        // 128KB (increased from 64KB for MAVLink messages)
+			Replicas:        replicas,
+			DuplicateWindow: 30 * time.Second,
+			AllowRollup:     true,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+		{
+			Name:            "CONSTELLATION_ORGANIZATIONS",
+			Subjects:        []string{"constellation.organizations.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         10000,
+			MaxBytes:        32 * 1024 * 1024,   // 32MB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
+			Replicas:        replicas,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+		{
+			Name:            "CONSTELLATION_COMMANDS",
+			Subjects:        []string{"constellation.commands.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.WorkQueuePolicy,
+			MaxMsgs:         10000,
+			MaxBytes:        32 * 1024 * 1024, // 32MB
+			MaxAge:          15 * time.Minute,
+			MaxMsgSize:      32 * 1024, // 32KB
+			Replicas:        replicas,
+			DuplicateWindow: 1 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     false,           // Commands must go through stream
+			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
+		},
+		{
+			Name:            "CONSTELLATION_AGENTOPS",
+			Subjects:        []string{"constellation.agentops.>"},
+			Storage:         nats.FileStorage,
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         50000,
+			MaxBytes:        128 * 1024 * 1024,
+			MaxAge:          7 * 24 * time.Hour,
+			MaxMsgSize:      256 * 1024,
+			Replicas:        replicas,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
+		},
+	}
 }
 
 // CreateGlobalStateKV creates or retrieves the global state KV bucket
@@ -449,13 +646,17 @@ func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
 		MaxBytes:    512 * 1024 * 1024, // 512MB
 		TTL:         0,                 // No TTL - data persists until deleted
 		History:     10,                // Keep last 10 versions
-		Replicas:    1,
+		Replicas:    en.config.StreamReplicas,
+		Storage:     nats.FileStorage,
 	}
 
 	// Try to get existing bucket
 	kv, err := en.js.KeyValue(bucketName)
 	if err != nil {
 		// Bucket doesn't exist, create it
+		if !errors.Is(err, nats.ErrBucketNotFound) {
+			return fmt.Errorf("failed to get KV bucket %s: %w", bucketName, err)
+		}
 		kv, err = en.js.CreateKeyValue(config)
 		if err != nil {
 			return fmt.Errorf("failed to create KV bucket %s: %w", bucketName, err)
@@ -464,6 +665,46 @@ func (en *EmbeddedNATS) CreateGlobalStateKV(bucketName string) error {
 	}
 
 	en.kv = kv
+	return nil
+}
+
+func (en *EmbeddedNATS) CreateObjectStore(bucketName string) error {
+	if en.js == nil {
+		return fmt.Errorf("JetStream not initialized")
+	}
+	if bucketName == "" {
+		return fmt.Errorf("object store bucket name is required")
+	}
+
+	config := &nats.ObjectStoreConfig{
+		Bucket:      bucketName,
+		Description: "Object storage for Constellation artifacts and payloads",
+		MaxBytes:    en.config.ObjectStoreMaxBytes,
+		Storage:     nats.FileStorage,
+		Replicas:    en.config.StreamReplicas,
+		Compression: en.config.ObjectStoreCompression,
+	}
+
+	obj, err := en.js.ObjectStore(bucketName)
+	if err != nil {
+		if !errors.Is(err, nats.ErrStreamNotFound) {
+			return fmt.Errorf("failed to get object store %s: %w", bucketName, err)
+		}
+		obj, err = en.js.CreateObjectStore(config)
+		if err != nil {
+			return fmt.Errorf("failed to create object store %s: %w", bucketName, err)
+		}
+		logger.Debug("Created object store", zap.String("bucket", bucketName))
+	}
+
+	if status, err := obj.Status(); err == nil && status.Replicas() != en.config.StreamReplicas {
+		logger.Warnw("Object store replica count differs from configuration",
+			"bucket", bucketName,
+			"configured_replicas", en.config.StreamReplicas,
+			"actual_replicas", status.Replicas())
+	}
+
+	en.obj = obj
 	return nil
 }
 
@@ -490,16 +731,21 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 		MaxAckPending: 1000,
 		DeliverPolicy: nats.DeliverAllPolicy,
 		ReplayPolicy:  nats.ReplayInstantPolicy,
+		Replicas:      en.config.StreamReplicas,
 	}
 
 	// Try to get existing consumer
 	_, err := en.js.ConsumerInfo(streamName, consumerName)
 	if err == nil {
-		// Consumer exists
-		logger.Debug("Durable consumer already exists",
+		if _, err := en.js.UpdateConsumer(streamName, config); err != nil {
+			return fmt.Errorf("failed to update consumer %s: %w", consumerName, err)
+		}
+		logger.Debug("Updated durable consumer",
 			zap.String("consumer", consumerName),
 			zap.String("stream", streamName))
 		return nil
+	} else if !errors.Is(err, nats.ErrConsumerNotFound) {
+		return fmt.Errorf("failed to get consumer %s: %w", consumerName, err)
 	}
 
 	// Create new consumer
@@ -524,6 +770,10 @@ func (en *EmbeddedNATS) JetStream() nats.JetStreamContext {
 
 func (en *EmbeddedNATS) KeyValue() nats.KeyValue {
 	return en.kv
+}
+
+func (en *EmbeddedNATS) ObjectStore() nats.ObjectStore {
+	return en.obj
 }
 
 func (en *EmbeddedNATS) Shutdown(ctx context.Context) error {
@@ -674,6 +924,10 @@ func (en *EmbeddedNATS) AddNKeyUser(publicKey string, perms *server.Permissions)
 	en.mu.Lock()
 	defer en.mu.Unlock()
 
+	if en.IsExternal() || en.server == nil {
+		return ErrExternalNKeyManagement
+	}
+
 	if en.serverOpts == nil {
 		return fmt.Errorf("server options not initialized")
 	}
@@ -705,6 +959,10 @@ func (en *EmbeddedNATS) AddNKeyUser(publicKey string, perms *server.Permissions)
 func (en *EmbeddedNATS) RemoveNKeyUser(publicKey string) error {
 	en.mu.Lock()
 	defer en.mu.Unlock()
+
+	if en.IsExternal() || en.server == nil {
+		return ErrExternalNKeyManagement
+	}
 
 	if en.serverOpts == nil {
 		return fmt.Errorf("server options not initialized")
@@ -738,6 +996,10 @@ func (en *EmbeddedNATS) RemoveNKeyUser(publicKey string) error {
 func (en *EmbeddedNATS) RestoreNKeyUsers(keys []NKeyRecord) error {
 	en.mu.Lock()
 	defer en.mu.Unlock()
+
+	if en.IsExternal() || en.server == nil {
+		return ErrExternalNKeyManagement
+	}
 
 	if en.serverOpts == nil {
 		return fmt.Errorf("server options not initialized")

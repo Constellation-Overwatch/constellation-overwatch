@@ -75,6 +75,11 @@ const (
 	KVBucketGlobalState = "CONSTELLATION_GLOBAL_STATE"
 )
 
+// Object Store bucket names
+const (
+	ObjectStoreBucketConstellation = "CONSTELLATION_OBJECTS"
+)
+
 // KV Key patterns for global state
 const (
 	KVKeyEntity      = "entity:%s"       // entity_id -> full entity state

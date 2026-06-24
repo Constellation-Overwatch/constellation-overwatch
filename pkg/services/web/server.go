@@ -69,19 +69,29 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 	inviteSvc := services.NewInviteService(database)
 	apiKeySvc := services.NewAPIKeyService(database)
 
-	// Restore NATS NKey users from API keys on startup.
-	if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
-		records := make([]embeddednats.NKeyRecord, len(nkeyData))
-		for i, d := range nkeyData {
-			records[i] = embeddednats.NKeyRecord{
-				NATSPubKey: d.NATSPubKey,
-				Scopes:     d.Scopes,
-				OrgID:      d.OrgID,
+	// Restore NATS NKey users from API keys on startup when this process owns
+	// the embedded server. External clusters must provision users separately.
+	if natsEmbedded.SupportsNKeyUserManagement() {
+		if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
+			records := make([]embeddednats.NKeyRecord, len(nkeyData))
+			for i, d := range nkeyData {
+				records[i] = embeddednats.NKeyRecord{
+					NATSPubKey: d.NATSPubKey,
+					Scopes:     d.Scopes,
+					OrgID:      d.OrgID,
+				}
 			}
+			if err := natsEmbedded.RestoreNKeyUsers(records); err != nil {
+				logger.Warnw("Failed to restore NATS NKey users", "error", err)
+			}
+		} else if err != nil {
+			logger.Warnw("Failed to list NATS NKey users", "error", err)
 		}
-		if err := natsEmbedded.RestoreNKeyUsers(records); err != nil {
-			logger.Warnw("Failed to restore NATS NKey users", "error", err)
-		}
+	} else if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
+		logger.Warnw("Skipping NATS NKey restore; external NATS mode requires out-of-band account/user provisioning",
+			"count", len(nkeyData))
+	} else if err != nil {
+		logger.Warnw("Failed to list NATS NKey users", "error", err)
 	}
 
 	// Initialize the router
