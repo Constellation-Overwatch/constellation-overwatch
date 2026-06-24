@@ -69,7 +69,8 @@ func NewManager(natsClient *embeddednats.EmbeddedNATS, db *sql.DB) (*Manager, er
 			NewTelemetryWorker(nc, js, db, kv, registry),
 			NewEntityWorker(nc, js),
 			NewEventWorker(nc, js, db, registry),
-			NewCommandWorker(nc, js),
+			NewCommandWorker(nc, js, db, natsClient),
+			NewAgentOpsWorker(nc, js, db),
 		},
 	}, nil
 }

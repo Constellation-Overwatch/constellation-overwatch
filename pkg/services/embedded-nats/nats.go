@@ -237,6 +237,7 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
 		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
 		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
+		{shared.StreamAgentOps, shared.ConsumerAgentOpsProcessor, shared.SubjectAgentOpsAll},
 	}
 
 	for _, c := range consumers {
@@ -388,8 +389,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -409,6 +410,20 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			AllowRollup:     false,
 			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
+		},
+		{
+			Name:            "CONSTELLATION_AGENTOPS",
+			Subjects:        []string{"constellation.agentops.>"},
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         50000,
+			MaxBytes:        128 * 1024 * 1024,
+			MaxAge:          7 * 24 * time.Hour,
+			MaxMsgSize:      256 * 1024,
+			Replicas:        1,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     true,
+			DiscardPolicy:   nats.DiscardOld,
 		},
 	}
 
@@ -758,7 +773,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }
@@ -794,6 +809,9 @@ func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
 			subAllow = append(subAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
 		case "nats:events":
 			subAllow = append(subAllow, "constellation.events.>")
+		case "nats:agentops":
+			pubAllow = append(pubAllow, "constellation.agentops.>")
+			subAllow = append(subAllow, "constellation.agentops.>")
 		}
 	}
 

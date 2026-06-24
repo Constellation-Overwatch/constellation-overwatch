@@ -37,6 +37,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
 	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/agentops"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
@@ -215,11 +216,25 @@ func cmdStart(args []string) {
 	// 4. Bootstrap admin user if none exist
 	bootstrapAdmin(dbService)
 
-	// 5. Initialize API Router
+	// 5. Initialize Agent Ops observer
+	logger.Info("Initializing Agent Ops observer...")
+	agentOpsObserver := agentops.NewObserver(dbService.GetDB(), natsService, agentops.DefaultObserverConfig())
+	if err := agentOpsObserver.Start(ctx); err != nil {
+		logger.Fatalw("Failed to start Agent Ops observer", "error", err)
+	}
+
+	// 6. Initialize Agent Ops autolog observer
+	logger.Info("Initializing Agent Ops autolog observer...")
+	agentOpsAutolog := agentops.NewAutologObserver(dbService.GetDB(), natsService, agentops.DefaultAutologConfig())
+	if err := agentOpsAutolog.Start(ctx); err != nil {
+		logger.Fatalw("Failed to start Agent Ops autolog observer", "error", err)
+	}
+
+	// 7. Initialize API Router
 	logger.Info("Initializing API router...")
 	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
 
-	// 6. Initialize Web Server
+	// 8. Initialize Web Server
 	logger.Info("Initializing web server...")
 	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
 	if err != nil {
@@ -236,6 +251,8 @@ func cmdStart(args []string) {
 	mgr.AddService(dbService)
 	mgr.AddService(natsService)
 	mgr.AddService(workerManager)
+	mgr.AddService(agentOpsObserver)
+	mgr.AddService(agentOpsAutolog)
 	mgr.AddService(webServer)
 
 	// TUI mode or headless mode
