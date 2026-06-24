@@ -33,10 +33,18 @@ const (
 	SubjectTelemetryEntity = "constellation.telemetry.%s.%s" // org_id, entity_id
 
 	// Command subjects
-	SubjectCommands         = "constellation.commands"
-	SubjectCommandsAll      = "constellation.commands.>"
-	SubjectCommandEntity    = "constellation.commands.%s.%s"        // org_id, entity_id
-	SubjectCommandBroadcast = "constellation.commands.%s.broadcast" // org_id
+	SubjectCommands              = "constellation.commands"
+	SubjectCommandsAll           = "constellation.commands.>"
+	SubjectCommandEntity         = "constellation.commands.%s.%s"              // org_id, entity_id
+	SubjectCommandBroadcast      = "constellation.commands.%s.broadcast"       // org_id
+	SubjectCommandAgentOpsLaunch = "constellation.commands.%s.agentops.launch" // org_id
+
+	// Agent operations subjects
+	SubjectAgentOps         = "constellation.agentops"
+	SubjectAgentOpsAll      = "constellation.agentops.>"
+	SubjectAgentOpsEvents   = "constellation.agentops.%s.%s"         // node_id, event_type
+	SubjectAgentOpsTools    = "constellation.agentops.%s.tool.%s"    // node_id, tool_name
+	SubjectAgentOpsSessions = "constellation.agentops.%s.session.%s" // node_id, provider
 
 	// System subjects
 	SubjectSystemHealth  = "constellation.system.health"
@@ -50,6 +58,7 @@ const (
 	StreamEvents    = "CONSTELLATION_EVENTS"
 	StreamTelemetry = "CONSTELLATION_TELEMETRY"
 	StreamCommands  = "CONSTELLATION_COMMANDS"
+	StreamAgentOps  = "CONSTELLATION_AGENTOPS"
 )
 
 // Consumer names
@@ -58,6 +67,7 @@ const (
 	ConsumerEventProcessor     = "event-processor"
 	ConsumerCommandProcessor   = "command-processor"
 	ConsumerTelemetryProcessor = "telemetry-processor"
+	ConsumerAgentOpsProcessor  = "agentops-processor"
 )
 
 // KV Bucket names
@@ -109,6 +119,43 @@ func CommandEntitySubject(orgID, entityID string) string {
 
 func CommandBroadcastSubject(orgID string) string {
 	return fmt.Sprintf(SubjectCommandBroadcast, orgID)
+}
+
+func CommandAgentOpsLaunchSubject(orgID string) string {
+	if orgID == "" {
+		orgID = "default"
+	}
+	return fmt.Sprintf(SubjectCommandAgentOpsLaunch, orgID)
+}
+
+func AgentOpsEventSubject(nodeID, eventType string) string {
+	if nodeID == "" {
+		nodeID = "unknown"
+	}
+	if eventType == "" {
+		eventType = "observed"
+	}
+	return fmt.Sprintf(SubjectAgentOpsEvents, nodeID, eventType)
+}
+
+func AgentOpsToolSubject(nodeID, toolName string) string {
+	if nodeID == "" {
+		nodeID = "unknown"
+	}
+	if toolName == "" {
+		toolName = "unknown"
+	}
+	return fmt.Sprintf(SubjectAgentOpsTools, nodeID, toolName)
+}
+
+func AgentOpsSessionSubject(nodeID, provider string) string {
+	if nodeID == "" {
+		nodeID = "unknown"
+	}
+	if provider == "" {
+		provider = "unknown"
+	}
+	return fmt.Sprintf(SubjectAgentOpsSessions, nodeID, provider)
 }
 
 func OrgCreatedSubject() string {

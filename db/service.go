@@ -354,6 +354,10 @@ func (s *Service) MigrateSchema() error {
 	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)`)
 	s.DB.Exec(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`)
 
+	if err := s.migrateAgentOpsSchema(); err != nil {
+		logger.Warnw("Failed to migrate agent ops schema", "error", err)
+	}
+
 	// Add user_ref column to webauthn_sessions if it doesn't exist (needed for
 	// random session keys that store the user reference alongside the session).
 	if !s.columnExists("webauthn_sessions", "user_ref") {
@@ -361,6 +365,88 @@ func (s *Service) MigrateSchema() error {
 			logger.Warnw("Failed to add user_ref column to webauthn_sessions", "error", err)
 		} else {
 			logger.Info("Added user_ref column to webauthn_sessions")
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) migrateAgentOpsSchema() error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS agent_nodes (
+			node_id TEXT PRIMARY KEY,
+			node_label TEXT DEFAULT '',
+			node_class TEXT DEFAULT '',
+			machine_id TEXT DEFAULT '',
+			address TEXT DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('active', 'idle', 'running', 'blocked', 'stopped', 'error', 'unknown')),
+			capabilities TEXT DEFAULT '{}',
+			last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS agent_sessions (
+			session_id TEXT PRIMARY KEY,
+			node_id TEXT DEFAULT '',
+			team_id TEXT DEFAULT '',
+			agent_label TEXT DEFAULT '',
+			model TEXT DEFAULT '',
+			role TEXT DEFAULT '',
+			workspace TEXT DEFAULT '',
+			pane_id TEXT DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'unknown' CHECK(status IN ('active', 'idle', 'running', 'blocked', 'stopped', 'error', 'unknown')),
+			last_output TEXT DEFAULT '',
+			last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS agent_events (
+			event_id TEXT PRIMARY KEY,
+			node_id TEXT DEFAULT '',
+			session_id TEXT DEFAULT '',
+			event_type TEXT NOT NULL,
+			subject TEXT DEFAULT '',
+			severity TEXT NOT NULL DEFAULT 'info',
+			payload TEXT DEFAULT '{}',
+			observed_at TEXT NOT NULL DEFAULT (datetime('now')),
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS agent_launch_requests (
+			request_id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL DEFAULT '',
+			requested_by TEXT NOT NULL DEFAULT '',
+			team_name TEXT NOT NULL,
+			template TEXT NOT NULL DEFAULT '',
+			target_node_id TEXT NOT NULL DEFAULT '',
+			workspace TEXT NOT NULL DEFAULT '',
+			mission TEXT NOT NULL DEFAULT '',
+			model_route TEXT NOT NULL DEFAULT '',
+			agent_count INTEGER NOT NULL DEFAULT 1,
+			status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued', 'published', 'accepted', 'running', 'completed', 'failed', 'cancelled')),
+			command_subject TEXT NOT NULL DEFAULT '',
+			command_payload TEXT NOT NULL DEFAULT '{}',
+			error TEXT NOT NULL DEFAULT '',
+			requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_nodes_status ON agent_nodes(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_nodes_last_seen ON agent_nodes(last_seen_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_sessions_node ON agent_sessions(node_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_sessions_team ON agent_sessions(team_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_sessions_last_seen ON agent_sessions(last_seen_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_events_node ON agent_events(node_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_events_session ON agent_events(session_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_events_observed ON agent_events(observed_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_launch_requests_org ON agent_launch_requests(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_launch_requests_status ON agent_launch_requests(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_launch_requests_requested ON agent_launch_requests(requested_at DESC)`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := s.DB.Exec(stmt); err != nil {
+			return err
 		}
 	}
 
