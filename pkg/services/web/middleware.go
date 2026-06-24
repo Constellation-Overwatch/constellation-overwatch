@@ -124,6 +124,39 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// AgentOpsAuth accepts either a browser session or an API key. Agent Ops has
+// browser-facing views and producer-facing ingestion endpoints under the same
+// /api/agent-ops prefix, so this middleware picks the credential family from
+// the request headers before falling back to session auth.
+func AgentOpsAuth(sessionAuth *middleware.SessionAuth, apiKeyAuth *middleware.APIKeyMiddleware) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if hasAPIKeyCredential(r) {
+				if apiKeyAuth == nil {
+					http.Error(w, "API key authentication is unavailable", http.StatusUnauthorized)
+					return
+				}
+				apiKeyAuth.Authenticate(next).ServeHTTP(w, r)
+				return
+			}
+
+			if sessionAuth == nil {
+				http.Error(w, "Session authentication is unavailable", http.StatusUnauthorized)
+				return
+			}
+			sessionAuth.RequireSession(next).ServeHTTP(w, r)
+		})
+	}
+}
+
+func hasAPIKeyCredential(r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("X-API-Key")) != "" {
+		return true
+	}
+	auth := strings.TrimSpace(r.Header.Get("Authorization"))
+	return strings.HasPrefix(strings.ToLower(auth), "bearer ")
+}
+
 // clientIP extracts the client IP from the request, checking proxy headers.
 func clientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {

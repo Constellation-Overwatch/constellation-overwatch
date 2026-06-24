@@ -29,11 +29,13 @@ func NewRouter(
 	userSvc *services.UserService,
 	inviteSvc *services.InviteService,
 	apiKeySvc *services.APIKeyService,
+	agentOpsSvc *services.AgentOpsService,
+	apiKeyAuth *apimiddleware.APIKeyMiddleware,
 ) chi.Router {
 	r := chi.NewRouter()
 
 	// Initialize handlers
-	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc)
+	pageHandler := handlers.NewPageHandler(orgSvc, entitySvc, agentOpsSvc)
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc, natsEmbedded.Connection())
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc, entitySvc)
 	videoHandler := handlers.NewVideoHandler(mtxClient, entitySvc)
@@ -41,6 +43,7 @@ func NewRouter(
 	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
 	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
 	metricsHandler := handlers.NewMetricsHandler()
+	agentOpsHandler := handlers.NewAgentOpsHandler(agentOpsSvc)
 
 	// Serve static files (no auth required) — uses embedded filesystem
 	staticHandler, err := StaticFileServer()
@@ -79,6 +82,17 @@ func NewRouter(
 		r.Get("/dev/trigger-reload", hotReload.HandleTriggerReload)
 	}
 
+	// ── Agent Ops API (session or API-key auth) ───────────────────────
+	r.Route("/api/agent-ops", func(r chi.Router) {
+		r.Use(AgentOpsAuth(sessionAuth, apiKeyAuth))
+		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/summary", agentOpsHandler.HandleSummary)
+		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/knowledge", agentOpsHandler.HandleKnowledge)
+		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:write")).Post("/tool-calls", agentOpsHandler.HandleToolCall)
+		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:write")).Post("/session-entries", agentOpsHandler.HandleSessionEntry)
+		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/sse", agentOpsHandler.HandleSSE)
+		r.Post("/launch", agentOpsHandler.HandleLaunch)
+	})
+
 	// ── Session-protected ─────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(sessionAuth.RequireSession)
@@ -96,6 +110,7 @@ func NewRouter(
 		r.Get("/organizations/cancel/{org_id}", datastarHandler.HandleOrganizationCancel)
 		r.Get("/streams", pageHandler.HandleStreamsPage)
 		r.Get("/overwatch", pageHandler.HandleOverwatchPage)
+		r.Get("/agent-ops", pageHandler.HandleAgentOpsPage)
 		r.Get("/fleet", pageHandler.HandleFleetPage)
 		r.Get("/fleet/edit/{entity_id}", datastarHandler.HandleFleetEdit)
 		r.Get("/fleet/cancel/{entity_id}", datastarHandler.HandleFleetCancel)

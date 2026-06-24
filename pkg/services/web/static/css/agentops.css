@@ -1,0 +1,280 @@
+.agentops-panel {
+    min-height: calc(100vh - 32px);
+}
+
+.agentops-header {
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.agentops-header h2 {
+    margin-bottom: 6px;
+}
+
+.agentops-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.agentops-last-seen {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.agentops-last-seen strong {
+    color: var(--text-primary);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0;
+}
+
+.agentops-metrics {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.agentops-metric {
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 14px;
+}
+
+.agentops-metric span,
+.agentops-metric small {
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.agentops-metric strong {
+    color: var(--text-accent);
+    font-family: 'Courier New', monospace;
+    font-size: 1.7rem;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.agentops-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: 16px;
+}
+
+.agentops-section {
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+
+.agentops-wide {
+    margin-top: 16px;
+}
+
+.agentops-section-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.agentops-section-header--split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.agentops-section-header h3 {
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.agentops-launch-form {
+    display: grid;
+    grid-template-columns: minmax(92px, 0.85fr) minmax(160px, 1.4fr) minmax(150px, 1.3fr) minmax(92px, 0.85fr) minmax(104px, 0.9fr) minmax(96px, 0.85fr) 72px auto;
+    gap: 8px;
+    align-items: center;
+    flex: 1;
+    max-width: 1180px;
+}
+
+.agentops-launch-form input,
+.agentops-launch-form select {
+    min-width: 0;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.24);
+    color: var(--text-primary);
+    padding: 0 9px;
+    font-size: 0.72rem;
+    outline: none;
+}
+
+.agentops-launch-form input::placeholder {
+    color: var(--text-secondary);
+}
+
+.agentops-launch-form button {
+    height: 32px;
+    white-space: nowrap;
+}
+
+.agentops-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.agentops-table th,
+.agentops-table td {
+    padding: 11px 12px;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.75rem;
+}
+
+.agentops-table th {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.025);
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.agentops-table td {
+    color: var(--text-primary);
+}
+
+.agentops-table td strong {
+    display: block;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+}
+
+.agentops-table td span {
+    display: block;
+    max-width: 260px;
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+}
+
+.agentops-table code {
+    color: #b7c8c0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0;
+}
+
+.agentops-capsule {
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-family: 'Courier New', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0;
+}
+
+.agentops-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.62rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.agentops-status--active {
+    color: var(--success);
+    border-color: rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.agentops-status--pending {
+    color: var(--warning);
+    border-color: rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.agentops-status--error {
+    color: var(--error);
+    border-color: rgba(239, 68, 68, 0.32);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.agentops-section .empty-state {
+    padding: 28px 14px;
+}
+
+@media (max-width: 1100px) {
+    .agentops-grid,
+    .agentops-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .agentops-section-header--split {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .agentops-launch-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-width: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .agentops-header,
+    .agentops-last-seen {
+        align-items: flex-start;
+    }
+
+    .agentops-metrics,
+    .agentops-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .agentops-launch-form {
+        grid-template-columns: 1fr;
+    }
+
+    .agentops-section {
+        overflow-x: auto;
+    }
+
+    .agentops-table {
+        min-width: 680px;
+    }
+}

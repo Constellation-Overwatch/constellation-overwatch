@@ -33,10 +33,12 @@ func NewAdminHandler(userSvc *services.UserService, apiKeySvc *services.APIKeySe
 	}
 }
 
-// requireAdmin checks that the authenticated user has the admin role.
+// requireAdmin checks that the authenticated user has the admin role or that an
+// API-key request carries the admin scope.
 // It writes a 403 JSON error and returns false when the check fails.
 func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if middleware.UserRoleFromContext(r.Context()) != "admin" {
+	if middleware.UserRoleFromContext(r.Context()) != "admin" &&
+		!middleware.HasScope(middleware.ScopesFromContext(r.Context()), "admin") {
 		sendError(w, http.StatusForbidden, "FORBIDDEN", "Admin role required")
 		return false
 	}

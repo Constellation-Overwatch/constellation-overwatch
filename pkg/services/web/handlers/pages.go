@@ -9,6 +9,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
 	admin_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/admin/pages"
+	agentops_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/agentops/pages"
 	fleet_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/fleet/pages"
 	map_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/map/pages"
 	org_components "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/organizations/components"
@@ -19,14 +20,16 @@ import (
 )
 
 type PageHandler struct {
-	orgSvc    *services.OrganizationService
-	entitySvc *services.EntityService
+	orgSvc      *services.OrganizationService
+	entitySvc   *services.EntityService
+	agentOpsSvc *services.AgentOpsService
 }
 
-func NewPageHandler(orgSvc *services.OrganizationService, entitySvc *services.EntityService) *PageHandler {
+func NewPageHandler(orgSvc *services.OrganizationService, entitySvc *services.EntityService, agentOpsSvc *services.AgentOpsService) *PageHandler {
 	return &PageHandler{
-		orgSvc:    orgSvc,
-		entitySvc: entitySvc,
+		orgSvc:      orgSvc,
+		entitySvc:   entitySvc,
+		agentOpsSvc: agentOpsSvc,
 	}
 }
 
@@ -166,6 +169,32 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 	component := overwatch_pages.OverwatchPage()
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render overwatch page: %v", err)
+	}
+}
+
+func (h *PageHandler) HandleAgentOpsPage(w http.ResponseWriter, r *http.Request) {
+	summary, err := h.agentOpsSvc.Summary(r.Context())
+	if err != nil {
+		logger.Errorf("Failed to load agent ops page: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if r.Header.Get("Accept") == "text/event-stream" {
+		sse := datastar.NewSSE(w, r)
+		component := agentops_pages.AgentOpsPage(summary)
+		err := sse.PatchElementTempl(component,
+			datastar.WithSelector("body"),
+			datastar.WithModeOuter())
+		if err != nil {
+			logger.Infof("Error patching agent ops page: %v", err)
+		}
+		return
+	}
+
+	component := agentops_pages.AgentOpsPage(summary)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Failed to render agent ops page: %v", err)
 	}
 }
 

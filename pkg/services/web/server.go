@@ -25,6 +25,7 @@ type Server struct {
 	natsEmbedded *embeddednats.EmbeddedNATS
 	orgSvc       *services.OrganizationService
 	entitySvc    *services.EntityService
+	agentOpsSvc  *services.AgentOpsService
 	sseHandler   *SSEHandler
 	mtxClient    *mediamtx.Client
 	apiHandler   http.Handler
@@ -45,6 +46,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		apiHandler:   apiHandler,
 		orgSvc:       services.NewOrganizationService(dbService.GetDB(), natsEmbedded),
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
+		agentOpsSvc:  services.NewAgentOpsService(dbService.GetDB(), natsEmbedded),
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 		mtxClient:    mtxClient,
 	}
@@ -53,6 +55,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 
 	// Initialize session auth (backed by SQLite for restart persistence)
 	sessionAuth := middleware.NewSessionAuth(database)
+	apiKeyAuth := middleware.NewAPIKeyMiddleware(database)
 
 	// Initialize WebAuthn relying party
 	wa, err := services.NewWebAuthn()
@@ -85,7 +88,8 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 	s.mux = NewRouter(
 		s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler,
 		s.mtxClient, s.apiHandler, sessionAuth,
-		authSvc, userSvc, inviteSvc, apiKeySvc,
+		authSvc, userSvc, inviteSvc, apiKeySvc, s.agentOpsSvc,
+		apiKeyAuth,
 	)
 
 	return s, nil

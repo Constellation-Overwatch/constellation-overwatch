@@ -82,6 +82,14 @@ templ AdminPage() {
 								<span class="scope-chip">entities:write</span>
 							</label>
 							<label class="scope-toggle">
+								<input type="checkbox" value="agentops:read"/>
+								<span class="scope-chip">agentops:read</span>
+							</label>
+							<label class="scope-toggle">
+								<input type="checkbox" value="agentops:write"/>
+								<span class="scope-chip">agentops:write</span>
+							</label>
+							<label class="scope-toggle">
 								<input type="checkbox" value="admin"/>
 								<span class="scope-chip">admin</span>
 							</label>
@@ -107,6 +115,10 @@ templ AdminPage() {
 							<label class="scope-toggle">
 								<input type="checkbox" value="nats:events"/>
 								<span class="scope-chip">nats:events</span>
+							</label>
+							<label class="scope-toggle">
+								<input type="checkbox" value="nats:agentops"/>
+								<span class="scope-chip">nats:agentops</span>
 							</label>
 							<label class="scope-toggle">
 								<input type="checkbox" value="nats:all"/>
