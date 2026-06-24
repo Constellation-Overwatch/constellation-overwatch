@@ -82,8 +82,7 @@ func NewRouter(
 		r.Get("/dev/trigger-reload", hotReload.HandleTriggerReload)
 	}
 
-	// ── Agent Ops API (session or API-key auth) ───────────────────────
-	r.Route("/api/agent-ops", func(r chi.Router) {
+	mountAgentOpsAPI := func(r chi.Router) {
 		r.Use(AgentOpsAuth(sessionAuth, apiKeyAuth))
 		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/summary", agentOpsHandler.HandleSummary)
 		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/knowledge", agentOpsHandler.HandleKnowledge)
@@ -91,7 +90,11 @@ func NewRouter(
 		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:write")).Post("/session-entries", agentOpsHandler.HandleSessionEntry)
 		r.With(apimiddleware.RequireScopeIfAPIKey("agentops:read")).Get("/sse", agentOpsHandler.HandleSSE)
 		r.Post("/launch", agentOpsHandler.HandleLaunch)
-	})
+	}
+
+	// ── Agent Ops API (session or API-key auth) ───────────────────────
+	r.Route("/api/agent/ops", mountAgentOpsAPI)
+	r.Route("/api/agent-ops", mountAgentOpsAPI)
 
 	// ── Session-protected ─────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
@@ -110,7 +113,11 @@ func NewRouter(
 		r.Get("/organizations/cancel/{org_id}", datastarHandler.HandleOrganizationCancel)
 		r.Get("/streams", pageHandler.HandleStreamsPage)
 		r.Get("/overwatch", pageHandler.HandleOverwatchPage)
-		r.Get("/agent-ops", pageHandler.HandleAgentOpsPage)
+		r.Get("/agent/ops", pageHandler.HandleAgentOpsPage)
+		r.Get("/agent/ops/{tab}", pageHandler.HandleAgentOpsPage)
+		r.Get("/agent-ops", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/agent/ops", http.StatusFound)
+		})
 		r.Get("/fleet", pageHandler.HandleFleetPage)
 		r.Get("/fleet/edit/{entity_id}", datastarHandler.HandleFleetEdit)
 		r.Get("/fleet/cancel/{entity_id}", datastarHandler.HandleFleetCancel)

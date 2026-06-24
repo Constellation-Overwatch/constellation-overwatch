@@ -8,7 +8,7 @@ import (
 )
 
 func TestRequireScopeIfAPIKeyAllowsBrowserSession(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/agent-ops/summary", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agent/ops/summary", nil)
 	rr := httptest.NewRecorder()
 
 	handler := RequireScopeIfAPIKey("agentops:read")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +22,7 @@ func TestRequireScopeIfAPIKeyAllowsBrowserSession(t *testing.T) {
 }
 
 func TestRequireScopeIfAPIKeyRejectsMissingScope(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/agent-ops/summary", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agent/ops/summary", nil)
 	ctx := context.WithValue(req.Context(), ContextKeyAPIKey, "key-1")
 	ctx = context.WithValue(ctx, ContextKeyScopes, []string{"entities:read"})
 	req = req.WithContext(ctx)
@@ -39,7 +39,7 @@ func TestRequireScopeIfAPIKeyRejectsMissingScope(t *testing.T) {
 }
 
 func TestRequireScopeIfAPIKeyAllowsAdminScope(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/agent-ops/summary", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agent/ops/summary", nil)
 	ctx := context.WithValue(req.Context(), ContextKeyAPIKey, "key-1")
 	ctx = context.WithValue(ctx, ContextKeyScopes, []string{"admin"})
 	req = req.WithContext(ctx)

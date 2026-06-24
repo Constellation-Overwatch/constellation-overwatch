@@ -81,7 +81,7 @@ func (h *AgentOpsHandler) HandleLaunch(w http.ResponseWriter, r *http.Request) {
 		}
 
 		sse := datastar.NewSSE(w, r)
-		if err := sse.PatchElementTempl(agentops_pages.AgentOpsPanel(summary),
+		if err := sse.PatchElementTempl(agentops_pages.AgentOpsPanel(summary, activeAgentOpsTab(r, "launches")),
 			datastar.WithSelector("#agentops-panel"),
 			datastar.WithModeOuter()); err != nil {
 			logger.Warnw("Failed to patch agent ops panel after launch request", "error", err)
@@ -131,6 +131,7 @@ func (h *AgentOpsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	sse := datastar.NewSSE(w, r)
+	activeTab := activeAgentOpsTab(r, "overview")
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -140,7 +141,7 @@ func (h *AgentOpsHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 			logger.Warnw("Failed to stream agent ops summary", "error", err)
 			return false
 		}
-		if err := sse.PatchElementTempl(agentops_pages.AgentOpsPanel(summary),
+		if err := sse.PatchElementTempl(agentops_pages.AgentOpsPanel(summary, activeTab),
 			datastar.WithSelector("#agentops-panel"),
 			datastar.WithModeOuter()); err != nil {
 			logger.Warnw("Failed to patch agent ops panel", "error", err)
@@ -275,6 +276,13 @@ func decodeAgentOpsSessionEntryRequest(r *http.Request) (services.CreateAgentOps
 
 func acceptsEventStream(r *http.Request) bool {
 	return strings.Contains(strings.ToLower(r.Header.Get("Accept")), "text/event-stream")
+}
+
+func activeAgentOpsTab(r *http.Request, fallback string) string {
+	if tab := agentops_pages.NormalizeAgentOpsTab(r.URL.Query().Get("tab")); tab != "overview" {
+		return tab
+	}
+	return agentops_pages.NormalizeAgentOpsTab(fallback)
 }
 
 func parsePositiveQueryInt(r *http.Request, key string, fallback int) int {

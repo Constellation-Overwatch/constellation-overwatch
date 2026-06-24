@@ -9,7 +9,7 @@ Agent operations should become a Constellation domain, not a transplanted
 - NATS subjects under `constellation.agentops.>`.
 - A dedicated `CONSTELLATION_AGENTOPS` stream and `agentops-processor`.
 - A native web feature under `pkg/services/web/features/agentops`.
-- Operator routes under `/agent-ops` and `/api/agent-ops/*`.
+- Operator routes under `/agent/ops` and `/api/agent/ops/*`.
 - A lifecycle-managed tmux-compatible observer in
   `pkg/services/agentops.Observer`.
 - Durable launch requests in `agent_launch_requests` with commands published
@@ -22,7 +22,7 @@ Agent operations should become a Constellation domain, not a transplanted
 - CLI transcript/autolog entries recorded as Agent Ops `session.entry`
   envelopes under `constellation.agentops.<node>.session.<provider>`.
 - Event-backed knowledge gradients for hot topics, participants, suggested
-  queries, and query hits through `/api/agent-ops/knowledge`.
+  queries, and query hits through `/api/agent/ops/knowledge`.
 
 This lets AO behavior move into the same service manager, embedded NATS,
 worker, API, and Templ/Datastar topology as fleet, map, streams, metrics,
@@ -32,14 +32,14 @@ video, and Overwatch.
 
 | Legacy AO domain | Legacy package | Native Constellation owner | UI parity |
 |---|---|---|---|
-| Observe agent workspaces | `tools/ao-ops/internal/tmux`, `tools/ao-ops/internal/autolog` | `pkg/services/agentops.Observer`, `agent_sessions`, `agent_events`, `AgentOpsWorker` | `/agent-ops` nodes, sessions, events, last output |
-| Connect nodes | `tools/ao-ops/internal/gossip`, `tools/ao-ops/internal/events` | Embedded NATS, JetStream streams, global KV | `/streams`, `/agent-ops` |
-| Learn from histories | `tools/ao-ops/internal/store`, `tools/ao-ops/internal/neuralpulse`, `tools/ao-ops/internal/reflection` | SQLite domain tables, `session.entry` events, and native knowledge gradient | `/agent-ops` knowledge gradient, event history, and session entries |
-| CLI autolog | `tools/ao-ops/internal/autolog`, `tools/ao-ops/internal/exchange` | Agent Ops `session.entry` envelopes, provider metadata, and transcript previews | `/agent-ops` recent session entries |
-| Launch teams | `tools/ao-ops/internal/orchestrator`, `tools/ao-ops/internal/mcpserver` | `agent_launch_requests`, Constellation command subjects, native launch executor | `/agent-ops` launch requests |
-| MCP/tool call telemetry | `tools/ao-ops/internal/mcpserver/toolevents` | Agent Ops `tool.call` events and tool-specific NATS subjects | `/agent-ops` recent tool calls |
-| Operate through dashboard | `tools/ao-ops/internal/api`, `tools/ao-ops/internal/ui`, `tools/ao-ops/static` | `pkg/services/web/features/agentops` | `/agent-ops` |
-| Tray/bootstrap/update | `cmd/ao-tray`, `internal/tray`, release scripts | `cmd/microlith` bootstrap/update and `pkg/updater` | `/agent-ops` parity map |
+| Observe agent workspaces | `tools/ao-ops/internal/tmux`, `tools/ao-ops/internal/autolog` | `pkg/services/agentops.Observer`, `agent_sessions`, `agent_events`, `AgentOpsWorker` | `/agent/ops` nodes, sessions, events, last output |
+| Connect nodes | `tools/ao-ops/internal/gossip`, `tools/ao-ops/internal/events` | Embedded NATS, JetStream streams, global KV | `/streams`, `/agent/ops` |
+| Learn from histories | `tools/ao-ops/internal/store`, `tools/ao-ops/internal/neuralpulse`, `tools/ao-ops/internal/reflection` | SQLite domain tables, `session.entry` events, and native knowledge gradient | `/agent/ops` knowledge gradient, event history, and session entries |
+| CLI autolog | `tools/ao-ops/internal/autolog`, `tools/ao-ops/internal/exchange` | Agent Ops `session.entry` envelopes, provider metadata, and transcript previews | `/agent/ops` recent session entries |
+| Launch teams | `tools/ao-ops/internal/orchestrator`, `tools/ao-ops/internal/mcpserver` | `agent_launch_requests`, Constellation command subjects, native launch executor | `/agent/ops` launch requests |
+| MCP/tool call telemetry | `tools/ao-ops/internal/mcpserver/toolevents` | Agent Ops `tool.call` events and tool-specific NATS subjects | `/agent/ops` recent tool calls |
+| Operate through dashboard | `tools/ao-ops/internal/api`, `tools/ao-ops/internal/ui`, `tools/ao-ops/static` | `pkg/services/web/features/agentops` | `/agent/ops` |
+| Tray/bootstrap/update | `cmd/ao-tray`, `internal/tray`, release scripts | `cmd/microlith` bootstrap/update and `pkg/updater` | `/agent/ops` parity map |
 
 ## Removal Sequence
 
@@ -47,7 +47,7 @@ video, and Overwatch.
    events from `constellation.agentops.>`.
 2. Keep the native tmux-compatible observer as the replacement for the AO tmux
    pane/session observer. CLI autolog producers should emit `session.entry`
-   envelopes through `RecordSessionEntry`, `/api/agent-ops/session-entries`, or
+   envelopes through `RecordSessionEntry`, `/api/agent/ops/session-entries`, or
    `constellation.agentops.<node>.session.<provider>` instead of writing
    directly to AO SQLite tables.
 3. Keep launch/team requests behind Constellation command subjects and web admin
@@ -69,24 +69,24 @@ Implemented slices:
 - Native tmux-compatible observer: lifecycle-managed service that polls
   `tmux`/`psmux`-compatible pane state and records nodes, sessions, current
   command, role/model hints, workspace, and last output under Agent Ops.
-- Native launch request path: admin-gated `/api/agent-ops/launch` persists
+- Native launch request path: admin-gated `/api/agent/ops/launch` persists
   `agent_launch_requests`, publishes `agentops.launch` commands to the
   Constellation command stream when NATS is available, and shows queued requests
-  in `/agent-ops`.
+  in `/agent/ops`.
 - Native launch executor: `CommandWorker` routes
   `constellation.commands.<org>.agentops.launch` to
   `pkg/services/agentops.LaunchExecutor`, which updates request lifecycle
   state, records launch lifecycle events, creates tmux-compatible team panes in
   tmux mode, sets observer-readable pane metadata, and keeps model CLI startup
   opt-in.
-- Native tool-call ingestion: `/api/agent-ops/tool-calls` and the Agent Ops
+- Native tool-call ingestion: `/api/agent/ops/tool-calls` and the Agent Ops
   stream accept MCP-style tool call envelopes, normalize tool subjects, store
-  them as `tool.call` events, and show recent calls in `/agent-ops`.
-- Native session-entry ingestion: `/api/agent-ops/session-entries` and the
+  them as `tool.call` events, and show recent calls in `/agent/ops`.
+- Native session-entry ingestion: `/api/agent/ops/session-entries` and the
   Agent Ops stream accept CLI/autolog transcript envelopes, normalize provider
   subjects, store them as `session.entry` events, update session last output,
-  and show recent entries in `/agent-ops`.
-- Native knowledge gradient: `/api/agent-ops/knowledge` computes local topic
+  and show recent entries in `/agent/ops`.
+- Native knowledge gradient: `/api/agent/ops/knowledge` computes local topic
   heat, related hits, participants, suggested queries, and a compact capsule
   from Agent Ops events without depending on the legacy AO exchanges database.
 - Bootstrap/update mapping: first-run admin bootstrap and release replacement

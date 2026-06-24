@@ -17,6 +17,7 @@ import (
 	overwatch_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/overwatch/pages"
 	streams_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/streams/pages"
 	video_pages "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/video/pages"
+	"github.com/go-chi/chi/v5"
 )
 
 type PageHandler struct {
@@ -180,9 +181,10 @@ func (h *PageHandler) HandleAgentOpsPage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	activeTab := agentops_pages.NormalizeAgentOpsTab(chi.URLParam(r, "tab"))
 	if r.Header.Get("Accept") == "text/event-stream" {
 		sse := datastar.NewSSE(w, r)
-		component := agentops_pages.AgentOpsPage(summary)
+		component := agentops_pages.AgentOpsPage(summary, activeTab)
 		err := sse.PatchElementTempl(component,
 			datastar.WithSelector("body"),
 			datastar.WithModeOuter())
@@ -192,7 +194,7 @@ func (h *PageHandler) HandleAgentOpsPage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	component := agentops_pages.AgentOpsPage(summary)
+	component := agentops_pages.AgentOpsPage(summary, activeTab)
 	if err := component.Render(r.Context(), w); err != nil {
 		logger.Errorf("Failed to render agent ops page: %v", err)
 	}

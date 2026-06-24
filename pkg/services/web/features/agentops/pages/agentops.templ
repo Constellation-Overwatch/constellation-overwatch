@@ -11,24 +11,60 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 )
 
-templ AgentOpsPage(summary *services.AgentOpsSummary) {
+type agentOpsTab struct {
+	ID      string
+	Label   string
+	Href    string
+	Summary string
+}
+
+var agentOpsTabList = []agentOpsTab{
+	{ID: "overview", Label: "Overview", Href: "/agent/ops", Summary: "Nodes and sessions"},
+	{ID: "launches", Label: "Launches", Href: "/agent/ops/launches", Summary: "Team queue"},
+	{ID: "tools", Label: "Tools", Href: "/agent/ops/tools", Summary: "MCP calls"},
+	{ID: "entries", Label: "Entries", Href: "/agent/ops/entries", Summary: "Session turns"},
+	{ID: "knowledge", Label: "Knowledge", Href: "/agent/ops/knowledge", Summary: "Topic heat"},
+	{ID: "events", Label: "Events", Href: "/agent/ops/events", Summary: "Event stream"},
+	{ID: "surfaces", Label: "Surfaces", Href: "/agent/ops/surfaces", Summary: "Parity map"},
+}
+
+func NormalizeAgentOpsTab(value string) string {
+	value = strings.Trim(strings.ToLower(value), "/")
+	if value == "" {
+		return "overview"
+	}
+	for _, tab := range agentOpsTabList {
+		if tab.ID == value {
+			return tab.ID
+		}
+	}
+	return "overview"
+}
+
+func agentOpsSSEInit(activeTab string) string {
+	return fmt.Sprintf("@get('/api/agent/ops/sse?tab=%s')", NormalizeAgentOpsTab(activeTab))
+}
+
+templ AgentOpsPage(summary *services.AgentOpsSummary, activeTab string) {
 	if summary == nil {
 		{{ summary = &services.AgentOpsSummary{Surfaces: services.AgentOpsSurfaces()} }}
 	}
+	{{ activeTab = NormalizeAgentOpsTab(activeTab) }}
 	@layouts.BaseWithStyles("Agent Ops", []string{"/static/css/agentops.css"}) {
 		@components.Navigation("agentops") {
 			<div class="tab-content">
-				@AgentOpsPanel(summary)
+				@AgentOpsPanel(summary, activeTab)
 			</div>
 		}
 	}
 }
 
-templ AgentOpsPanel(summary *services.AgentOpsSummary) {
+templ AgentOpsPanel(summary *services.AgentOpsSummary, activeTab string) {
 	if summary == nil {
 		{{ summary = &services.AgentOpsSummary{Surfaces: services.AgentOpsSurfaces()} }}
 	}
-	<div id="agentops-panel" class="panel agentops-panel" data-init="@get('/api/agent-ops/sse')">
+	{{ activeTab = NormalizeAgentOpsTab(activeTab) }}
+	<div id="agentops-panel" class="panel agentops-panel" data-init={ agentOpsSSEInit(activeTab) }>
 		<div class="panel-header agentops-header">
 			<div>
 				<h2>Agent Ops</h2>
@@ -48,144 +84,123 @@ templ AgentOpsPanel(summary *services.AgentOpsSummary) {
 			@metricTile("Launches", summary.LaunchRequestCount, summary.PendingLaunchCount)
 			@metricTile("Surfaces", len(summary.Surfaces), 0)
 		</div>
-		@launchRequestPanel(summary)
-		@toolCallsPanel(summary)
-		@sessionEntriesPanel(summary)
-		@knowledgePanel(summary)
-		<div class="agentops-grid">
-			<section class="agentops-section">
-				<div class="agentops-section-header">
-					<h3>Nodes</h3>
-				</div>
-				if len(summary.Nodes) == 0 {
-					<div class="empty-state">No agent nodes observed.</div>
-				} else {
-					<table class="agentops-table">
-						<thead>
-							<tr>
-								<th>Node</th>
-								<th>Class</th>
-								<th>Status</th>
-								<th>Last Seen</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, node := range summary.Nodes {
-								<tr>
-									<td>
-										<strong>{ fallback(node.NodeLabel, node.NodeID) }</strong>
-										<span>{ fallback(node.Address, node.MachineID) }</span>
-									</td>
-									<td>{ fallback(node.NodeClass, "-") }</td>
-									<td><span class={ statusClass(node.Status) }>{ strings.ToUpper(node.Status) }</span></td>
-									<td>{ displayTime(node.LastSeenAt) }</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				}
-			</section>
-			<section class="agentops-section">
-				<div class="agentops-section-header">
-					<h3>Sessions</h3>
-				</div>
-				if len(summary.Sessions) == 0 {
-					<div class="empty-state">No agent sessions observed.</div>
-				} else {
-					<table class="agentops-table">
-						<thead>
-							<tr>
-								<th>Agent</th>
-								<th>Model</th>
-								<th>Workspace</th>
-								<th>Last Output</th>
-								<th>Status</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, session := range summary.Sessions {
-								<tr>
-									<td>
-										<strong>{ fallback(session.AgentLabel, session.SessionID) }</strong>
-										<span>{ fallback(session.Role, session.TeamID) }</span>
-									</td>
-									<td>{ fallback(session.Model, "-") }</td>
-									<td>{ fallback(session.Workspace, session.PaneID) }</td>
-									<td>{ fallback(session.LastOutput, "-") }</td>
-									<td><span class={ statusClass(session.Status) }>{ strings.ToUpper(session.Status) }</span></td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				}
-			</section>
+		@agentOpsTabs(activeTab)
+		<div class="agentops-panel-body">
+			switch activeTab {
+				case "launches":
+					@launchRequestPanel(summary)
+				case "tools":
+					@toolCallsPanel(summary)
+				case "entries":
+					@sessionEntriesPanel(summary)
+				case "knowledge":
+					@knowledgePanel(summary)
+				case "events":
+					@eventsPanel(summary)
+				case "surfaces":
+					@surfacePanel(summary)
+				default:
+					@overviewPanel(summary)
+			}
 		</div>
-		<section class="agentops-section agentops-wide">
-			<div class="agentops-section-header">
-				<h3>Surface Parity</h3>
-			</div>
+	</div>
+}
+
+templ agentOpsTabs(activeTab string) {
+	<nav class="agentops-tabs" aria-label="Agent Ops sections">
+		for _, tab := range agentOpsTabList {
+			<a href={ tab.Href } class={ "agentops-tab", templ.KV("active", tab.ID == activeTab) }>
+				<span>{ tab.Label }</span>
+				<small>{ tab.Summary }</small>
+			</a>
+		}
+	</nav>
+}
+
+templ overviewPanel(summary *services.AgentOpsSummary) {
+	<div class="agentops-grid agentops-overview-grid">
+		@nodesPanel(summary)
+		@sessionsPanel(summary)
+	</div>
+}
+
+templ nodesPanel(summary *services.AgentOpsSummary) {
+	<section class="agentops-section">
+		<div class="agentops-section-header">
+			<h3>Nodes</h3>
+		</div>
+		if len(summary.Nodes) == 0 {
+			<div class="empty-state">No agent nodes observed.</div>
+		} else {
 			<table class="agentops-table">
 				<thead>
 					<tr>
-						<th>Capability</th>
-						<th>Legacy AO Surface</th>
-						<th>Constellation Surface</th>
-						<th>UI</th>
-						<th>State</th>
+						<th>Node</th>
+						<th>Class</th>
+						<th>Status</th>
+						<th>Last Seen</th>
 					</tr>
 				</thead>
 				<tbody>
-					for _, surface := range summary.Surfaces {
+					for _, node := range summary.Nodes {
 						<tr>
-							<td>{ surface.Capability }</td>
-							<td><code>{ surface.LegacyPackage }</code></td>
-							<td><code>{ surface.NativeSurface }</code></td>
-							<td><code>{ surface.UIPath }</code></td>
-							<td><span class={ statusClass(surface.State) }>{ strings.ToUpper(surface.State) }</span></td>
+							<td>
+								<strong>{ fallback(node.NodeLabel, node.NodeID) }</strong>
+								<span>{ fallback(node.Address, node.MachineID) }</span>
+							</td>
+							<td>{ fallback(node.NodeClass, "-") }</td>
+							<td><span class={ statusClass(node.Status) }>{ strings.ToUpper(node.Status) }</span></td>
+							<td>{ displayTime(node.LastSeenAt) }</td>
 						</tr>
 					}
 				</tbody>
 			</table>
-		</section>
-		<section class="agentops-section agentops-wide">
-			<div class="agentops-section-header">
-				<h3>Recent Events</h3>
-			</div>
-			if len(summary.Events) == 0 {
-				<div class="empty-state">No agent events recorded.</div>
-			} else {
-				<table class="agentops-table">
-					<thead>
+		}
+	</section>
+}
+
+templ sessionsPanel(summary *services.AgentOpsSummary) {
+	<section class="agentops-section">
+		<div class="agentops-section-header">
+			<h3>Sessions</h3>
+		</div>
+		if len(summary.Sessions) == 0 {
+			<div class="empty-state">No agent sessions observed.</div>
+		} else {
+			<table class="agentops-table">
+				<thead>
+					<tr>
+						<th>Agent</th>
+						<th>Model</th>
+						<th>Workspace</th>
+						<th>Last Output</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, session := range summary.Sessions {
 						<tr>
-							<th>Observed</th>
-							<th>Type</th>
-							<th>Node</th>
-							<th>Session</th>
-							<th>Subject</th>
+							<td>
+								<strong>{ fallback(session.AgentLabel, session.SessionID) }</strong>
+								<span>{ fallback(session.Role, session.TeamID) }</span>
+							</td>
+							<td>{ fallback(session.Model, "-") }</td>
+							<td>{ fallback(session.Workspace, session.PaneID) }</td>
+							<td>{ fallback(session.LastOutput, "-") }</td>
+							<td><span class={ statusClass(session.Status) }>{ strings.ToUpper(session.Status) }</span></td>
 						</tr>
-					</thead>
-					<tbody>
-						for _, event := range summary.Events {
-							<tr>
-								<td>{ displayTime(event.ObservedAt) }</td>
-								<td>{ event.EventType }</td>
-								<td>{ fallback(event.NodeID, "-") }</td>
-								<td>{ fallback(event.SessionID, "-") }</td>
-								<td><code>{ fallback(event.Subject, "-") }</code></td>
-							</tr>
-						}
-					</tbody>
-				</table>
-			}
-		</section>
-	</div>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
 }
 
 templ launchRequestPanel(summary *services.AgentOpsSummary) {
 	<section class="agentops-section agentops-wide">
 		<div class="agentops-section-header agentops-section-header--split">
 			<h3>Launch Requests</h3>
-			<form class="agentops-launch-form" data-on:submit__prevent="@post('/api/agent-ops/launch', {contentType: 'form'})" data-indicator:launching>
+			<form class="agentops-launch-form" data-on:submit__prevent="@post('/api/agent/ops/launch?tab=launches', {contentType: 'form'})" data-indicator:launching>
 				<input type="text" name="team_name" placeholder="Team" required maxlength="80"/>
 				<input type="text" name="mission" placeholder="Mission" required maxlength="240"/>
 				<input type="text" name="workspace" placeholder="Workspace" maxlength="500"/>
@@ -353,6 +368,70 @@ templ sessionEntriesPanel(summary *services.AgentOpsSummary) {
 				</tbody>
 			</table>
 		}
+	</section>
+}
+
+templ eventsPanel(summary *services.AgentOpsSummary) {
+	<section class="agentops-section agentops-wide">
+		<div class="agentops-section-header">
+			<h3>Recent Events</h3>
+		</div>
+		if len(summary.Events) == 0 {
+			<div class="empty-state">No agent events recorded.</div>
+		} else {
+			<table class="agentops-table">
+				<thead>
+					<tr>
+						<th>Observed</th>
+						<th>Type</th>
+						<th>Node</th>
+						<th>Session</th>
+						<th>Subject</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, event := range summary.Events {
+						<tr>
+							<td>{ displayTime(event.ObservedAt) }</td>
+							<td>{ event.EventType }</td>
+							<td>{ fallback(event.NodeID, "-") }</td>
+							<td>{ fallback(event.SessionID, "-") }</td>
+							<td><code>{ fallback(event.Subject, "-") }</code></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</section>
+}
+
+templ surfacePanel(summary *services.AgentOpsSummary) {
+	<section class="agentops-section agentops-wide">
+		<div class="agentops-section-header">
+			<h3>Surface Parity</h3>
+		</div>
+		<table class="agentops-table">
+			<thead>
+				<tr>
+					<th>Capability</th>
+					<th>Legacy AO Surface</th>
+					<th>Constellation Surface</th>
+					<th>UI</th>
+					<th>State</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, surface := range summary.Surfaces {
+					<tr>
+						<td>{ surface.Capability }</td>
+						<td><code>{ surface.LegacyPackage }</code></td>
+						<td><code>{ surface.NativeSurface }</code></td>
+						<td><code>{ surface.UIPath }</code></td>
+						<td><span class={ statusClass(surface.State) }>{ strings.ToUpper(surface.State) }</span></td>
+					</tr>
+				}
+			</tbody>
+		</table>
 	</section>
 }
 

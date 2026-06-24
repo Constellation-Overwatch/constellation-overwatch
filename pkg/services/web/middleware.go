@@ -126,7 +126,7 @@ func RequireAdmin(next http.Handler) http.Handler {
 
 // AgentOpsAuth accepts either a browser session or an API key. Agent Ops has
 // browser-facing views and producer-facing ingestion endpoints under the same
-// /api/agent-ops prefix, so this middleware picks the credential family from
+// /api/agent/ops prefix, so this middleware picks the credential family from
 // the request headers before falling back to session auth.
 func AgentOpsAuth(sessionAuth *middleware.SessionAuth, apiKeyAuth *middleware.APIKeyMiddleware) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
