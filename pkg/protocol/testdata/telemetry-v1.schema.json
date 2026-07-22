@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://constellation-overwatch.dev/protocol/telemetry/v1",
+  "title": "Constellation Telemetry Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "message_uid",
+    "org_id",
+    "entity_id",
+    "message_id",
+    "message_type",
+    "system_id",
+    "component_id",
+    "data",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "message_uid": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },
+    "org_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },
+    "entity_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },
+    "source": { "type": "string" },
+    "message_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "message_type": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+    "system_id": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "component_id": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "data": {
+      "type": "object",
+      "description": "Raw MAVLink units are preserved: GLOBAL_POSITION_INT lat/lon degE7, altitude mm, velocity cm/s, heading cdeg; ATTITUDE rad and rad/s; SYS_STATUS mV/cA/percent; VFR_HUD SI units."
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

@@ -410,6 +410,20 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
 		},
+		{
+			Name:            shared.StreamQuarantine,
+			Subjects:        []string{shared.SubjectQuarantineAll},
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         10000,
+			MaxBytes:        64 * 1024 * 1024,
+			MaxAge:          7 * 24 * time.Hour,
+			MaxMsgSize:      512 * 1024,
+			Replicas:        1,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     false,
+			DiscardPolicy:   nats.DiscardOld,
+		},
 	}
 
 	for _, stream := range streams {
@@ -471,17 +485,20 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 		FilterSubject: filterSubject,
 		AckPolicy:     nats.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
-		MaxDeliver:    3,
+		MaxDeliver:    5,
 		MaxAckPending: 1000,
 		DeliverPolicy: nats.DeliverAllPolicy,
 		ReplayPolicy:  nats.ReplayInstantPolicy,
 	}
 
-	// Try to get existing consumer
+	// Update existing consumers so policy changes (including poison-message
+	// retry budgets) take effect on upgrades.
 	_, err := en.js.ConsumerInfo(streamName, consumerName)
 	if err == nil {
-		// Consumer exists
-		logger.Debug("Durable consumer already exists",
+		if _, err := en.js.UpdateConsumer(streamName, config); err != nil {
+			return fmt.Errorf("failed to update consumer %s: %w", consumerName, err)
+		}
+		logger.Debug("Updated durable consumer",
 			zap.String("consumer", consumerName),
 			zap.String("stream", streamName))
 		return nil

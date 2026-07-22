@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "message_uid": "018f0f10-7b4c-7a8d-9000-000000000001",
+  "org_id": "org-galaxy",
+  "entity_id": "gc35-e4b",
+  "source": "GC35-E4B",
+  "message_id": 33,
+  "message_type": "GLOBAL_POSITION_INT",
+  "system_id": 1,
+  "component_id": 1,
+  "data": {
+    "lat": 329488100,
+    "lon": -968013200,
+    "alt": 152400,
+    "relative_alt": 30480,
+    "hdg": 9000,
+    "vx": 123,
+    "vy": -45,
+    "vz": 6
+  },
+  "timestamp": "2026-07-21T20:00:00Z"
+}

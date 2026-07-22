@@ -32,6 +32,10 @@ const (
 	SubjectTelemetryAll    = "constellation.telemetry.>"
 	SubjectTelemetryEntity = "constellation.telemetry.%s.%s" // org_id, entity_id
 
+	// Quarantine subjects are Hub-internal poison-message records.
+	SubjectQuarantine    = "constellation.quarantine"
+	SubjectQuarantineAll = "constellation.quarantine.>"
+
 	// Command subjects
 	SubjectCommands         = "constellation.commands"
 	SubjectCommandsAll      = "constellation.commands.>"
@@ -46,10 +50,11 @@ const (
 
 // Stream names
 const (
-	StreamEntities  = "CONSTELLATION_ENTITIES"
-	StreamEvents    = "CONSTELLATION_EVENTS"
-	StreamTelemetry = "CONSTELLATION_TELEMETRY"
-	StreamCommands  = "CONSTELLATION_COMMANDS"
+	StreamEntities   = "CONSTELLATION_ENTITIES"
+	StreamEvents     = "CONSTELLATION_EVENTS"
+	StreamTelemetry  = "CONSTELLATION_TELEMETRY"
+	StreamCommands   = "CONSTELLATION_COMMANDS"
+	StreamQuarantine = "CONSTELLATION_QUARANTINE"
 )
 
 // Consumer names

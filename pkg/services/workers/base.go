@@ -2,13 +2,31 @@ package workers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
 )
+
+const quarantineAfterDeliveries = 3
+
+type QuarantineRecord struct {
+	Worker          string    `json:"worker"`
+	SourceStream    string    `json:"source_stream"`
+	SourceConsumer  string    `json:"source_consumer"`
+	OriginalSubject string    `json:"original_subject"`
+	OriginalData    []byte    `json:"original_data"`
+	Error           string    `json:"error"`
+	NumDelivered    uint64    `json:"num_delivered"`
+	StreamSequence  uint64    `json:"stream_sequence"`
+	QuarantinedAt   time.Time `json:"quarantined_at"`
+}
 
 type Worker interface {
 	Start(ctx context.Context) error
@@ -97,14 +115,7 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 
 			for _, msg := range msgs {
 				if err := handler(msg); err != nil {
-					// Handler failed - use negative acknowledgement to trigger redelivery
-					if nakErr := msg.Nak(); nakErr != nil {
-						logger.Errorw("Error sending NAK", "worker", w.name, "error", nakErr)
-					}
-					logger.Errorw("Handler failed, message NAK'd for redelivery",
-						"worker", w.name,
-						"subject", msg.Subject,
-						"error", err)
+					w.handleFailure(msg, err)
 				} else {
 					// Handler succeeded - acknowledge the message
 					if ackErr := msg.Ack(); ackErr != nil {
@@ -114,4 +125,73 @@ func (w *BaseWorker) processMessages(ctx context.Context, handler func(*nats.Msg
 			}
 		}
 	}
+}
+
+func (w *BaseWorker) handleFailure(msg *nats.Msg, handlerErr error) {
+	metadata, metadataErr := msg.Metadata()
+	if metadataErr == nil && metadata.NumDelivered >= quarantineAfterDeliveries {
+		if err := w.quarantine(msg, handlerErr, metadata); err == nil {
+			if err := msg.Term(); err != nil {
+				logger.Errorw("Error terminating quarantined message", "worker", w.name, "subject", msg.Subject, "error", err)
+			}
+			return
+		} else {
+			logger.Errorw("Failed to quarantine poison message", "worker", w.name, "subject", msg.Subject, "error", err)
+		}
+	}
+
+	if err := msg.Nak(); err != nil {
+		logger.Errorw("Error sending NAK", "worker", w.name, "error", err)
+	}
+	logger.Errorw("Handler failed, message NAK'd for redelivery",
+		"worker", w.name,
+		"subject", msg.Subject,
+		"error", handlerErr,
+		"metadata_error", metadataErr)
+}
+
+func (w *BaseWorker) quarantine(msg *nats.Msg, handlerErr error, metadata *nats.MsgMetadata) error {
+	record := QuarantineRecord{
+		Worker:          w.name,
+		SourceStream:    metadata.Stream,
+		SourceConsumer:  metadata.Consumer,
+		OriginalSubject: msg.Subject,
+		OriginalData:    msg.Data,
+		Error:           handlerErr.Error(),
+		NumDelivered:    metadata.NumDelivered,
+		StreamSequence:  metadata.Sequence.Stream,
+		QuarantinedAt:   time.Now().UTC(),
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("marshal quarantine record: %w", err)
+	}
+
+	quarantineMsg := nats.NewMsg(shared.SubjectQuarantine + "." + quarantineSubjectToken(w.name))
+	quarantineMsg.Data = data
+	quarantineMsg.Header.Set("Nats-Msg-Id", fmt.Sprintf("quarantine-%s-%d", metadata.Stream, metadata.Sequence.Stream))
+	if _, err := w.js.PublishMsg(quarantineMsg); err != nil {
+		return fmt.Errorf("publish quarantine record: %w", err)
+	}
+	logger.Errorw("Message quarantined after repeated handler failures",
+		"worker", w.name,
+		"subject", msg.Subject,
+		"deliveries", metadata.NumDelivered,
+		"stream_sequence", metadata.Sequence.Stream)
+	return nil
+}
+
+func quarantineSubjectToken(name string) string {
+	var token strings.Builder
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			token.WriteRune(r)
+		} else {
+			token.WriteByte('-')
+		}
+	}
+	if token.Len() == 0 {
+		return "worker"
+	}
+	return token.String()
 }
