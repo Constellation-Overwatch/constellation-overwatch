@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
@@ -60,7 +58,7 @@ func (h *AuthHandler) HandlePasskeyLoginBegin(w http.ResponseWriter, r *http.Req
 	user, err := h.authSvc.GetUserByEmail(req.Email)
 	if err != nil || len(user.Credentials) == 0 {
 		// User not found or has no credentials: return a fake challenge to prevent enumeration.
-		writeFakeChallenge(w, h.authSvc.WebAuthn().Config.RPID)
+		h.writeFakeChallenge(w, h.authSvc.WebAuthn().Config.RPID)
 		return
 	}
 
@@ -79,7 +77,7 @@ func (h *AuthHandler) HandlePasskeyLoginBegin(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	setWebAuthnSessionCookie(w, sessionKey)
+	h.setWebAuthnSessionCookie(w, sessionKey)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(options)
@@ -99,7 +97,7 @@ func (h *AuthHandler) HandlePasskeyLoginFinish(w http.ResponseWriter, r *http.Re
 		return
 	}
 	sessionKey := cookie.Value
-	clearWebAuthnSessionCookie(w)
+	h.clearWebAuthnSessionCookie(w)
 
 	// The fake key is set by writeFakeChallenge for unknown/credentialless users.
 	if sessionKey == "fake" {
@@ -139,7 +137,7 @@ func (h *AuthHandler) HandlePasskeyLoginFinish(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	middleware.SetSessionCookie(w, token)
+	h.sessionAuth.SetSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "redirect": "/overwatch"})
 }
 
@@ -177,7 +175,7 @@ func (h *AuthHandler) HandlePasskeyRegisterBegin(w http.ResponseWriter, r *http.
 		return
 	}
 
-	setWebAuthnSessionCookie(w, sessionKey)
+	h.setWebAuthnSessionCookie(w, sessionKey)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(options)
@@ -219,7 +217,7 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session expired, please try again"})
 		return
 	}
-	clearWebAuthnSessionCookie(w)
+	h.clearWebAuthnSessionCookie(w)
 
 	user, err := h.authSvc.GetUserByID(userID)
 	if err != nil {
@@ -263,7 +261,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		h.sessionAuth.DestroySession(cookie.Value)
 	}
 
-	middleware.ClearSessionCookie(w)
+	h.sessionAuth.ClearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
@@ -281,7 +279,7 @@ func (h *AuthHandler) HandleSetupPasskey(w http.ResponseWriter, r *http.Request)
 // fail to find a matching credential. Using a fake allowCredentials entry
 // (rather than an empty list) prevents the browser from prompting discoverable
 // credentials stored in iCloud Keychain / platform authenticators.
-func writeFakeChallenge(w http.ResponseWriter, rpID string) {
+func (h *AuthHandler) writeFakeChallenge(w http.ResponseWriter, rpID string) {
 	challenge := make([]byte, 32)
 	_, _ = crand.Read(challenge)
 
@@ -304,7 +302,7 @@ func writeFakeChallenge(w http.ResponseWriter, rpID string) {
 	}
 
 	// Set a throwaway session cookie so the finish handler path is consistent.
-	setWebAuthnSessionCookie(w, "fake")
+	h.setWebAuthnSessionCookie(w, "fake")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -315,44 +313,29 @@ func base64URLEncode(data []byte) string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 
-// secureCookies returns true when cookies should be marked Secure. This is
-// determined by checking OVERWATCH_INSECURE (explicit override) and falling
-// back to whether the configured base URL starts with "https://".
-func secureCookies() bool {
-	if v := os.Getenv("OVERWATCH_INSECURE"); v == "true" {
-		return false
-	}
-	baseURL := os.Getenv("OVERWATCH_BASE_URL")
-	if strings.HasPrefix(baseURL, "https://") {
-		return true
-	}
-	// Default to insecure for http:// or unset base URL (local dev)
-	return false
-}
-
 // setWebAuthnSessionCookie writes the WebAuthn session key cookie.
-func setWebAuthnSessionCookie(w http.ResponseWriter, key string) {
+func (h *AuthHandler) setWebAuthnSessionCookie(w http.ResponseWriter, key string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     webauthnSessionCookie,
 		Value:    key,
 		Path:     "/",
 		MaxAge:   300,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   h.sessionAuth.SecureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // clearWebAuthnSessionCookie clears the WebAuthn session key cookie.
 // Attributes mirror setWebAuthnSessionCookie so browsers reliably delete it.
-func clearWebAuthnSessionCookie(w http.ResponseWriter) {
+func (h *AuthHandler) clearWebAuthnSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     webauthnSessionCookie,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   h.sessionAuth.SecureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }

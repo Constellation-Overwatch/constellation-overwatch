@@ -8,8 +8,36 @@ import (
 	"testing"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
+
+func TestSecurityHeadersForProduction(t *testing.T) {
+	cfg := runtimeconfig.Development()
+	cfg.Mode = runtimeconfig.ModeProduction
+	cfg.HSTS = true
+	handler := SecurityHeadersForConfig(cfg)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if got := rec.Header().Get("Strict-Transport-Security"); got == "" {
+		t.Fatal("production response missing HSTS")
+	}
+	if got := rec.Header().Get("Content-Security-Policy"); got != runtimeconfig.DefaultContentSecurityPolicy {
+		t.Fatalf("CSP = %q", got)
+	}
+}
+
+func TestSecurityHeadersDevelopmentOmitsHSTS(t *testing.T) {
+	handler := SecurityHeadersForConfig(runtimeconfig.Development())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if got := rec.Header().Get("Strict-Transport-Security"); got != "" {
+		t.Fatalf("development HSTS = %q, want empty", got)
+	}
+}
 
 func TestRequireRole(t *testing.T) {
 	t.Parallel()

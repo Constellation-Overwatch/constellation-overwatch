@@ -151,7 +151,7 @@ func (h *InviteHandler) HandleFinalizeInvite(w http.ResponseWriter, r *http.Requ
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Account created but session failed")
 		return
 	}
-	middleware.SetSessionCookie(w, sessionToken)
+	h.sessionAuth.SetSessionCookie(w, sessionToken)
 
 	http.Redirect(w, r, "/setup-passkey", http.StatusSeeOther)
 }

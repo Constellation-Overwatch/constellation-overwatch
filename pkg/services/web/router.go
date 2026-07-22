@@ -7,6 +7,7 @@ import (
 
 	apimiddleware "github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -30,6 +31,7 @@ func NewRouter(
 	userSvc *services.UserService,
 	inviteSvc *services.InviteService,
 	apiKeySvc *services.APIKeyService,
+	runtimeCfg runtimeconfig.Runtime,
 ) chi.Router {
 	r := chi.NewRouter()
 
@@ -61,7 +63,7 @@ func NewRouter(
 
 	// ── Auth (rate-limited, no session required) ──────────────────────
 	r.Group(func(r chi.Router) {
-		r.Use(RateLimitByIP(10))
+		r.Use(RateLimitByIPFromTrustedProxies(10, runtimeCfg.TrustedProxies))
 		r.HandleFunc("/login", authHandler.HandleLogin)
 		r.Post("/auth/passkey/login/begin", authHandler.HandlePasskeyLoginBegin)
 		r.Post("/auth/passkey/login/finish", authHandler.HandlePasskeyLoginFinish)
@@ -70,7 +72,7 @@ func NewRouter(
 	})
 
 	// ── Development (hot reload) ──────────────────────────────────────
-	if dev.IsDev() {
+	if !runtimeCfg.Production() && dev.IsDev() {
 		hotReload := dev.NewHotReload()
 		r.Get("/dev/reload", hotReload.HandleReloadSSE)
 		r.Get("/dev/trigger-reload", hotReload.HandleTriggerReload)

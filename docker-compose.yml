@@ -13,18 +13,15 @@ services:
       # Uncomment if using custom certs
       # - ./certs:/app/certs:ro
     environment:
+      - OVERWATCH_ENV=development
+      - HOST=0.0.0.0
+      - PORT=8080
       - NATS_HOST=0.0.0.0
       - NATS_PORT=4222
-      # Security Configuration
-      - NATS_AUTH_ENABLED=true
-      - NATS_USER=constellation
-      - NATS_PASSWORD=changeme_dev_only
-      - NATS_SYS_USER=sys
-      - NATS_SYS_PASSWORD=changeme_sys_dev_only
-      # TLS Configuration (Enable for production)
-      - NATS_TLS_ENABLED=false
-      # - NATS_TLS_CERT=/app/certs/server.crt
-      # - NATS_TLS_KEY=/app/certs/server.key
+      - OVERWATCH_DATA_DIR=/app/data
+      - OVERWATCH_BASE_URL=http://localhost:8080
+      - OVERWATCH_RPID=localhost
+      - OVERWATCH_ALLOWED_ORIGINS=http://localhost:8080
     healthcheck:
       test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8080/health" ]
       interval: 30s

@@ -17,6 +17,12 @@ import (
 )
 
 func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
+	return NewRouterWithOrigins(db, nats, middleware.GetAllowedOrigins())
+}
+
+// NewRouterWithOrigins creates the API router with an explicit exact-origin
+// allowlist. Production startup passes its validated deployment profile here.
+func NewRouterWithOrigins(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOrigins []string) http.Handler {
 	r := chi.NewRouter()
 
 	// Services
@@ -35,7 +41,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	// Global middleware
 	r.Use(chimw.Recoverer)
 	r.Use(middleware.MaxBodySize(1 << 20))
-	r.Use(middleware.CORS)
+	r.Use(middleware.CORSForOrigins(allowedOrigins))
 
 	// Huma API configuration (shared OpenAPI spec)
 	config := huma.DefaultConfig("Constellation Overwatch API", "1.0.0")

@@ -76,10 +76,16 @@ func NewWebAuthn() (*webauthn.WebAuthn, error) {
 		baseURL = "http://localhost:8080"
 	}
 
+	return NewWebAuthnWithOrigins(rpID, []string{baseURL})
+}
+
+// NewWebAuthnWithOrigins creates a relying party from an already validated
+// RP ID and exact-origin list.
+func NewWebAuthnWithOrigins(rpID string, origins []string) (*webauthn.WebAuthn, error) {
 	cfg := &webauthn.Config{
 		RPDisplayName: "Constellation Overwatch",
 		RPID:          rpID,
-		RPOrigins:     []string{baseURL},
+		RPOrigins:     origins,
 	}
 
 	wa, err := webauthn.New(cfg)

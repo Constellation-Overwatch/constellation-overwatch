@@ -32,12 +32,19 @@ type session struct {
 // SessionAuth handles session-based authentication for the web UI.
 // Sessions are persisted in SQLite so they survive server restarts.
 type SessionAuth struct {
-	db *sql.DB
+	db            *sql.DB
+	secureCookies bool
 }
 
 // NewSessionAuth creates a new session auth handler backed by the given database.
 func NewSessionAuth(db *sql.DB) *SessionAuth {
-	sa := &SessionAuth{db: db}
+	return NewSessionAuthWithCookieSecurity(db, false)
+}
+
+// NewSessionAuthWithCookieSecurity creates a session handler whose cookie
+// transport policy comes from the validated runtime profile.
+func NewSessionAuthWithCookieSecurity(db *sql.DB, secureCookies bool) *SessionAuth {
+	sa := &SessionAuth{db: db, secureCookies: secureCookies}
 	// Start periodic cleanup of expired sessions.
 	go sa.cleanupLoop()
 	return sa
@@ -205,49 +212,41 @@ func (s *SessionAuth) RequireSession(next http.Handler) http.Handler {
 	})
 }
 
-// secureCookies returns true when cookies should be marked Secure. This is
-// determined by checking OVERWATCH_INSECURE (explicit override) and falling
-// back to whether the configured base URL starts with "https://".
-func secureCookies() bool {
-	if v := os.Getenv("OVERWATCH_INSECURE"); v == "true" {
-		return false
-	}
-	baseURL := os.Getenv("OVERWATCH_BASE_URL")
-	if strings.HasPrefix(baseURL, "https://") {
-		return true
-	}
-	return false
-}
-
-// SetSessionCookie sets the session cookie on the response
-func SetSessionCookie(w http.ResponseWriter, token string) {
+// SetSessionCookie sets the session cookie on the response.
+func (s *SessionAuth) SetSessionCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   int(sessionDuration.Seconds()),
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   s.secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-// ClearSessionCookie clears the session cookie
-func ClearSessionCookie(w http.ResponseWriter) {
+// ClearSessionCookie clears the session cookie.
+func (s *SessionAuth) ClearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   s.secureCookies,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
+// SecureCookies reports the fixed cookie transport policy for this handler.
+func (s *SessionAuth) SecureCookies() bool { return s.secureCookies }
+
 // GetAllowedOrigins returns the list of allowed origins from environment
 func GetAllowedOrigins() []string {
-	origins := os.Getenv("ALLOWED_ORIGINS")
+	origins := os.Getenv("OVERWATCH_ALLOWED_ORIGINS")
+	if origins == "" {
+		origins = os.Getenv("ALLOWED_ORIGINS")
+	}
 	if origins == "" || origins == "*" {
 		return []string{}
 	}
@@ -263,15 +262,8 @@ func GetAllowedOrigins() []string {
 // IsOriginAllowed checks if an origin is in the allowed list.
 // Returns false when ALLOWED_ORIGINS is not configured (deny by default).
 func IsOriginAllowed(origin string) bool {
-	origins := os.Getenv("ALLOWED_ORIGINS")
-	if origins == "" {
-		return false // Deny when not configured
-	}
-	if origins == "*" {
-		return true // Explicit wildcard for dev
-	}
-	for _, allowed := range strings.Split(origins, ",") {
-		if strings.TrimSpace(allowed) == origin {
+	for _, allowed := range GetAllowedOrigins() {
+		if allowed == origin {
 			return true
 		}
 	}
