@@ -25,6 +25,15 @@ func TestRuntimeConfigProductionValid(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigProductionAllowsLoopbackNATSBehindTLSProxy(t *testing.T) {
+	env := validProductionEnv(t)
+	env["NATS_HOST"] = "127.0.0.1"
+	env["NATS_PORT"] = "4224"
+	if _, err := runtimeConfigFromEnv(mapLookup(env)); err != nil {
+		t.Fatalf("loopback NATS behind TLS proxy rejected: %v", err)
+	}
+}
+
 func TestRuntimeConfigProductionFailsClosed(t *testing.T) {
 	tests := []struct {
 		name    string

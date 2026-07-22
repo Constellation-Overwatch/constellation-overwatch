@@ -6,16 +6,18 @@ identity, secret, storage, and bootstrap settings are complete.
 
 ## Recommended singleton Hub topology
 
-Run one Hub per connectivity boundary. Put the web listener on loopback behind
-an HTTPS reverse proxy and bind embedded NATS to the Hub's specific tailnet
-address. Operators on Windows, macOS, and Linux use a browser at the Hub's HTTPS
-name; do not install independent Hub processes as viewers.
+Run one Hub per connectivity boundary. Put both the web and embedded NATS
+listeners on loopback behind Tailscale Serve. Operators on Windows, macOS, and
+Linux use a browser at the Hub's HTTPS name; do not install independent Hub
+processes as viewers.
 
 For the SIM canary, the intended shape is:
 
-- Web: `127.0.0.1:8090`, published as one HTTPS tailnet origin.
-- NATS: the SIM's exact Tailscale IPv4 address on port `4223`, reachable only by
-  named Pulsar devices under tailnet ACLs.
+- Web: `127.0.0.1:8090`, published as a dedicated HTTPS tailnet origin or port.
+  If Agent Overwatch already owns HTTPS 443, use 8443 instead of replacing it.
+- NATS: `127.0.0.1:4224`, published by Tailscale Serve as TLS-terminated TCP on
+  tailnet port `4223`, reachable only by named Pulsar devices under tailnet
+  ACLs. This preserves ao-ops NATS on 4222.
 - Persistent database/JetStream data and backups in separate absolute paths.
 - One service identity owning the data, backup, configuration, and bootstrap
   directories.
@@ -32,12 +34,12 @@ silently changing a deployed service.
 OVERWATCH_ENV=production
 HOST=127.0.0.1
 PORT=8090
-NATS_HOST=100.x.y.z
-NATS_PORT=4223
+NATS_HOST=127.0.0.1
+NATS_PORT=4224
 
-OVERWATCH_BASE_URL=https://constellation.example-tailnet.ts.net
+OVERWATCH_BASE_URL=https://constellation.example-tailnet.ts.net:8443
 OVERWATCH_RPID=constellation.example-tailnet.ts.net
-OVERWATCH_ALLOWED_ORIGINS=https://constellation.example-tailnet.ts.net
+OVERWATCH_ALLOWED_ORIGINS=https://constellation.example-tailnet.ts.net:8443
 OVERWATCH_TRUSTED_PROXIES=127.0.0.1/32,::1/128
 
 OVERWATCH_KEY_HASH_SECRET=<at-least-32-random-characters>
@@ -66,6 +68,17 @@ Terminate HTTPS at a host-local proxy such as Tailscale Serve and forward to
 `OVERWATCH_ALLOWED_ORIGINS` before the first start. Changing those values later
 changes the WebAuthn relying party and can make registered passkeys unusable.
 
+Where Agent Overwatch already owns the default HTTPS origin, add non-conflicting
+listeners without resetting the existing Serve configuration:
+
+```bash
+tailscale serve --bg --https=8443 http://127.0.0.1:8090
+tailscale serve --bg --tls-terminated-tcp=4223 tcp://127.0.0.1:4224
+```
+
+Pulsar then uses `tls://constellation.example-tailnet.ts.net:4223`. Capture and
+verify `tailscale serve status --json` before and after any change.
+
 Production responses include HSTS, CSP, frame denial, MIME-sniffing denial,
 referrer policy, and a restrictive permissions policy. Session and WebAuthn
 ceremony cookies are always `Secure`, `HttpOnly`, and `SameSite=Lax` under the
@@ -93,8 +106,10 @@ one. It still refuses to overwrite an existing bootstrap file.
 - Generate the API-key hash secret with a cryptographic random generator and
   store it in the platform secret/config facility with owner-only access.
 - Do not use the development Docker Compose file for production.
-- Restrict NATS at both the host firewall and tailnet policy. Pulsars receive
-  per-organization NKey credentials and least-privilege directional scopes.
+- Restrict NATS at both the host firewall and tailnet policy. Terminate external
+  NATS TLS through Tailscale Serve and keep the embedded listener on loopback.
+  Pulsars receive per-organization NKey credentials and least-privilege
+  directional scopes.
 - Back up both SQLite and JetStream state as a coordinated set. Restore and
   restart/replay behavior must be proven during canary characterization before
   promotion beyond the SIM lab Hub.
