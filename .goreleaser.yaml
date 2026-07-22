@@ -5,7 +5,6 @@ project_name: overwatch
 
 before:
   hooks:
-    - go mod tidy
     - go mod verify
 
 builds:
@@ -108,12 +107,15 @@ release:
 
     ### Installation
 
-    **Linux/macOS:**
+    Download the archive for your operating system and architecture, then
+    verify it against the published SHA-256 checksum before extracting it.
+
+    **Linux/macOS checksum verification:**
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/Constellation-Overwatch/constellation-overwatch/main/install.sh | bash
+    sha256sum --check overwatch_{{ .Tag }}_checksums.txt
     ```
 
-    **Windows (PowerShell):**
+    **Windows checksum verification (PowerShell):**
     ```powershell
-    irm https://raw.githubusercontent.com/Constellation-Overwatch/constellation-overwatch/main/install.ps1 | iex
+    Get-FileHash -Algorithm SHA256 .\overwatch_*.zip
     ```
