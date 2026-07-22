@@ -569,20 +569,20 @@ func (w *TelemetryWorker) updateGPSRaw(state *shared.EntityState, data map[strin
 		state.Position.Global = &shared.GlobalPosition{}
 	}
 
-	if lat, ok := getFloat64(data, "lat"); ok {
-		state.Position.Global.Latitude = lat / 1e7 // MAVLink sends lat*1e7
+	if lat, ok := getInt32InRange(data, "lat", -900000000, 900000000); ok {
+		state.Position.Global.Latitude = float64(lat) / 1e7 // MAVLink sends lat*1e7
 	}
-	if lon, ok := getFloat64(data, "lon"); ok {
-		state.Position.Global.Longitude = lon / 1e7
+	if lon, ok := getInt32InRange(data, "lon", -1800000000, 1800000000); ok {
+		state.Position.Global.Longitude = float64(lon) / 1e7
 	}
-	if alt, ok := getFloat64(data, "alt"); ok {
-		state.Position.Global.AltitudeMSL = alt / 1000.0 // MAVLink sends alt in mm
+	if alt, ok := getInt32(data, "alt"); ok {
+		state.Position.Global.AltitudeMSL = float64(alt) / 1000.0 // MAVLink sends alt in mm
 	}
-	if eph, ok := getFloat64(data, "eph"); ok {
-		state.Position.Global.AccuracyH = eph / 100.0
+	if eph, ok := getUint16(data, "eph"); ok {
+		state.Position.Global.AccuracyH = float64(eph) / 100.0
 	}
-	if epv, ok := getFloat64(data, "epv"); ok {
-		state.Position.Global.AccuracyV = epv / 100.0
+	if epv, ok := getUint16(data, "epv"); ok {
+		state.Position.Global.AccuracyV = float64(epv) / 100.0
 	}
 	if satsVisible, ok := getUint8(data, "satellites_visible"); ok {
 		state.Position.Global.SatellitesVisible = int(satsVisible)
@@ -605,26 +605,26 @@ func (w *TelemetryWorker) updateGlobalPosition(state *shared.EntityState, data m
 		state.Position.Local = &shared.LocalPosition{}
 	}
 
-	if lat, ok := getFloat64(data, "lat"); ok {
-		state.Position.Global.Latitude = lat / 1e7
+	if lat, ok := getInt32InRange(data, "lat", -900000000, 900000000); ok {
+		state.Position.Global.Latitude = float64(lat) / 1e7
 	}
-	if lon, ok := getFloat64(data, "lon"); ok {
-		state.Position.Global.Longitude = lon / 1e7
+	if lon, ok := getInt32InRange(data, "lon", -1800000000, 1800000000); ok {
+		state.Position.Global.Longitude = float64(lon) / 1e7
 	}
-	if alt, ok := getFloat64(data, "alt"); ok {
-		state.Position.Global.AltitudeMSL = alt / 1000
+	if alt, ok := getInt32(data, "alt"); ok {
+		state.Position.Global.AltitudeMSL = float64(alt) / 1000
 	}
-	if relativeAlt, ok := getFloat64(data, "relative_alt"); ok {
-		state.Position.Global.AltitudeRelative = relativeAlt / 1000
+	if relativeAlt, ok := getInt32(data, "relative_alt"); ok {
+		state.Position.Global.AltitudeRelative = float64(relativeAlt) / 1000
 	}
-	if vx, ok := getFloat64(data, "vx"); ok {
-		state.Position.Local.VX = vx / 100
+	if vx, ok := getInt16(data, "vx"); ok {
+		state.Position.Local.VX = float64(vx) / 100
 	}
-	if vy, ok := getFloat64(data, "vy"); ok {
-		state.Position.Local.VY = vy / 100
+	if vy, ok := getInt16(data, "vy"); ok {
+		state.Position.Local.VY = float64(vy) / 100
 	}
-	if vz, ok := getFloat64(data, "vz"); ok {
-		state.Position.Local.VZ = vz / 100
+	if vz, ok := getInt16(data, "vz"); ok {
+		state.Position.Local.VZ = float64(vz) / 100
 	}
 
 	state.Position.Global.Timestamp = ts
@@ -948,6 +948,15 @@ func getInt32(data map[string]any, key string) (int32, bool) {
 		return 0, false
 	}
 	converted, ok := checkedIntRange(key, value, minInt32, maxInt32)
+	return int32(converted), ok
+}
+
+func getInt32InRange(data map[string]any, key string, min, max int32) (int32, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedIntRange(key, value, int64(min), int64(max))
 	return int32(converted), ok
 }
 

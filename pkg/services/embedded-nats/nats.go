@@ -235,7 +235,7 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 	}{
 		{shared.StreamEntities, shared.ConsumerEntityProcessor, shared.SubjectEntitiesAll},
 		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
-		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
+		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectDetectionsAll},
 		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
 	}
 
@@ -823,12 +823,10 @@ func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
 	}
 }
 
-// Event subjects have both an unclassified organization-first form and a
-// category-first form (for example ISR detections). A single-token wildcard
-// keeps both variants organization-scoped without granting events from peers.
+// Spokes may publish only the canonical, organization-scoped detection family.
+// Registry lifecycle is Hub-authoritative and is never accepted from an edge.
 func eventSubjectsForOrg(orgID string) []string {
 	return []string{
-		fmt.Sprintf("constellation.events.%s.>", orgID),
-		fmt.Sprintf("constellation.events.*.%s.>", orgID),
+		fmt.Sprintf("constellation.events.isr.%s.*.detection.*", orgID),
 	}
 }

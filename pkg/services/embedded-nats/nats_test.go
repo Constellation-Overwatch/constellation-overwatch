@@ -26,8 +26,7 @@ func TestBuildNATSPermissionsLeastPrivilege(t *testing.T) {
 
 	wantPublish := []string{
 		"constellation.telemetry.org-a.>",
-		"constellation.events.org-a.>",
-		"constellation.events.*.org-a.>",
+		"constellation.events.isr.org-a.*.detection.*",
 	}
 	wantSubscribe := []string{"_INBOX.>", "constellation.commands.org-a.>"}
 	if !reflect.DeepEqual(permissions.Publish.Allow, wantPublish) {
@@ -86,6 +85,7 @@ func TestNATSPermissionsConformance(t *testing.T) {
 	permissions := BuildNATSPermissions([]string{
 		shared.ScopeNATSTelemetryWrite,
 		shared.ScopeNATSCommandsRead,
+		shared.ScopeNATSEventsWrite,
 	}, "org-a")
 	ns, err := server.NewServer(&server.Options{
 		Host:      "127.0.0.1",
@@ -127,8 +127,18 @@ func TestNATSPermissionsConformance(t *testing.T) {
 		t.Fatalf("flush allowed telemetry: %v", err)
 	}
 	assertNoNATSError(t, permissionErrors)
+	if err := nc.Publish("constellation.events.isr.org-a.entity-1.detection.track-1", []byte("ok")); err != nil {
+		t.Fatalf("publish allowed detection: %v", err)
+	}
+	if err := nc.FlushTimeout(time.Second); err != nil {
+		t.Fatalf("flush allowed detection: %v", err)
+	}
+	assertNoNATSError(t, permissionErrors)
 
 	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.telemetry.org-b.entity-1")
+	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.isr.org-b.entity-1.detection.track-1")
+	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.org-a.entity-1.shutdown")
+	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.isr.org-a.entity-1.shutdown")
 	assertNATSPermissionDenied(t, nc, permissionErrors, "$JS.API.STREAM.CREATE.ATTACK")
 }
 

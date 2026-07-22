@@ -26,6 +26,9 @@ const (
 	// Event subjects
 	SubjectEvents    = "constellation.events"
 	SubjectEventsAll = "constellation.events.>"
+	// SubjectDetectionsAll is the only spoke-authored event family consumed by
+	// the Hub. Lifecycle and registry state remain Hub-authoritative.
+	SubjectDetectionsAll = "constellation.events.isr.*.*.detection.*"
 
 	// Telemetry subjects
 	SubjectTelemetry       = "constellation.telemetry"

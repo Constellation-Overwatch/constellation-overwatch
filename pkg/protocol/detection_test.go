@@ -11,6 +11,9 @@ func TestDetectionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if envelope.SchemaVersion != DetectionSchemaVersion {
+		t.Fatalf("schema version = %q", envelope.SchemaVersion)
+	}
 	subject, err := DetectionSubject(envelope.OrgID, envelope.EntityID, envelope.TrackID)
 	if err != nil {
 		t.Fatal(err)
@@ -23,5 +26,8 @@ func TestDetectionContract(t *testing.T) {
 	}
 	if _, err := DecodeDetection([]byte(strings.Replace(payload, `"confidence":0.9`, `"confidence":2`, 1))); err == nil {
 		t.Fatal("invalid confidence accepted")
+	}
+	if _, err := DecodeDetection([]byte(strings.Replace(payload, `"schema_version":"1.0.0"`, `"schema_version":"2.0.0"`, 1))); err == nil {
+		t.Fatal("unsupported detection schema accepted")
 	}
 }

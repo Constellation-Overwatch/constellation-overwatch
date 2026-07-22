@@ -59,6 +59,50 @@ func TestGoldenGlobalPositionProjectsCanonicalUnits(t *testing.T) {
 	}
 }
 
+func TestGlobalPositionRejectsOutOfRangeMAVLinkCoordinates(t *testing.T) {
+	w := &TelemetryWorker{}
+	state := &shared.EntityState{Position: &shared.PositionState{
+		Global: &shared.GlobalPosition{Latitude: 32.9, Longitude: -96.8, AltitudeMSL: 152.4, AltitudeRelative: 30.48},
+		Local:  &shared.LocalPosition{VX: 1.23, VY: 2.34, VZ: -0.45},
+	}}
+
+	w.updateGlobalPosition(state, map[string]any{
+		"lat":          900000001.0,
+		"lon":          -1800000001.0,
+		"alt":          float64(maxInt32) + 1,
+		"relative_alt": float64(minInt32) - 1,
+		"vx":           32768.0,
+		"vy":           -32769.0,
+		"vz":           1.5,
+	}, time.Now())
+
+	global := state.Position.Global
+	local := state.Position.Local
+	if global.Latitude != 32.9 || global.Longitude != -96.8 || global.AltitudeMSL != 152.4 || global.AltitudeRelative != 30.48 {
+		t.Fatalf("invalid global position changed prior state: %#v", global)
+	}
+	if local.VX != 1.23 || local.VY != 2.34 || local.VZ != -0.45 {
+		t.Fatalf("invalid local velocity changed prior state: %#v", local)
+	}
+}
+
+func TestGPSRawRejectsOutOfRangeNarrowFields(t *testing.T) {
+	w := &TelemetryWorker{}
+	state := &shared.EntityState{Position: &shared.PositionState{Global: &shared.GlobalPosition{
+		Latitude: 32.9, Longitude: -96.8, AltitudeMSL: 152.4, AccuracyH: 1.2, AccuracyV: 2.3,
+	}}}
+
+	w.updateGPSRaw(state, map[string]any{
+		"lat": 900000001.0, "lon": 1800000001.0,
+		"alt": float64(maxInt32) + 1, "eph": -1.0, "epv": 65536.0,
+	}, time.Now())
+
+	global := state.Position.Global
+	if global.Latitude != 32.9 || global.Longitude != -96.8 || global.AltitudeMSL != 152.4 || global.AccuracyH != 1.2 || global.AccuracyV != 2.3 {
+		t.Fatalf("invalid GPS_RAW_INT changed prior state: %#v", global)
+	}
+}
+
 func TestMergeTelemetryPreservesDetectionAndPersistsCursor(t *testing.T) {
 	detection := &shared.DetectionState{FrameCount: 7}
 	ts := time.Date(2026, 7, 21, 20, 0, 0, 0, time.UTC)

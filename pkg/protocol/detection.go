@@ -11,6 +11,10 @@ import (
 
 const detectionPrefix = "constellation.events.isr."
 
+// DetectionSchemaVersion is versioned independently from telemetry so either
+// contract can evolve without silently changing the other.
+const DetectionSchemaVersion = "1.0.0"
+
 // DetectionEnvelope is the canonical v1 Pulsar detection event.
 type DetectionEnvelope struct {
 	SchemaVersion string    `json:"schema_version"`
@@ -70,7 +74,7 @@ func DecodeDetection(data []byte) (DetectionEnvelope, error) {
 }
 
 func (e DetectionEnvelope) Validate() error {
-	if e.SchemaVersion != TelemetrySchemaVersion {
+	if e.SchemaVersion != DetectionSchemaVersion {
 		return fmt.Errorf("unsupported detection schema_version %q", e.SchemaVersion)
 	}
 	for name, value := range map[string]string{"event_uid": e.EventUID, "org_id": e.OrgID, "entity_id": e.EntityID, "track_id": e.TrackID} {

@@ -75,7 +75,7 @@ func TestSaveDetectionPreservesTelemetryAndRejectsStaleTrackReplay(t *testing.T)
 	kv := &memoryKV{value: encoded, revision: 1}
 	w := &EventWorker{kv: kv}
 	event := protocol.DetectionEnvelope{
-		SchemaVersion: protocol.TelemetrySchemaVersion, EventUID: "event-1",
+		SchemaVersion: protocol.DetectionSchemaVersion, EventUID: "event-1",
 		OrgID: "org-galaxy", EntityID: "gc35-e4b", TrackID: "track-1",
 		Label: "airplane", Confidence: .9, X1: .1, Y1: .2, X2: .3, Y2: .4,
 		Timestamp: telemetryTime.Add(-time.Minute),
@@ -117,7 +117,7 @@ func TestSaveDetectionCreatesProjectionBeforeFirstTelemetry(t *testing.T) {
 	kv := &createOnMissingKV{}
 	w := &EventWorker{kv: kv}
 	event := protocol.DetectionEnvelope{
-		SchemaVersion: protocol.TelemetrySchemaVersion, EventUID: "event-first",
+		SchemaVersion: protocol.DetectionSchemaVersion, EventUID: "event-first",
 		OrgID: "org-galaxy", EntityID: "camera-1", TrackID: "track-1",
 		Label: "airplane", Confidence: .9, X1: .1, Y1: .2, X2: .3, Y2: .4,
 		Timestamp: ts,
@@ -136,5 +136,19 @@ func TestSaveDetectionCreatesProjectionBeforeFirstTelemetry(t *testing.T) {
 	track := got.Detections.TrackedObjects[event.TrackID]
 	if track.FrameCount != 1 || track.DX != 0 || track.DY != 0 {
 		t.Fatalf("first detection projection = %#v", track)
+	}
+}
+
+func TestEventWorkerConsumesOnlyCanonicalDetections(t *testing.T) {
+	w := NewEventWorker(nil, nil, nil, nil)
+	if w.subject != shared.SubjectDetectionsAll {
+		t.Fatalf("event filter = %q, want %q", w.subject, shared.SubjectDetectionsAll)
+	}
+	msg := &nats.Msg{
+		Subject: "constellation.events.org-a.entity-1.shutdown",
+		Data:    []byte(`{"event_type":"shutdown","entity_id":"entity-1"}`),
+	}
+	if err := w.handleEventContext(context.Background(), msg); err == nil {
+		t.Fatal("non-detection lifecycle event was accepted")
 	}
 }
