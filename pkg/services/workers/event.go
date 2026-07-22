@@ -139,11 +139,22 @@ func (w *EventWorker) saveDetection(ctx context.Context, event protocol.Detectio
 			return err
 		}
 		entry, err := w.kv.Get(key)
-		if err != nil {
-			return fmt.Errorf("load entity state for detection: %w", err)
-		}
+		creating := false
 		var state shared.EntityState
-		if err := json.Unmarshal(entry.Value(), &state); err != nil {
+		if errors.Is(err, nats.ErrKeyNotFound) {
+			// Entity creation normally seeds KV, but detection is a valid first
+			// data-plane message. Recover from a missing projection instead of
+			// quarantining every detection until telemetry happens to arrive.
+			creating = true
+			state = shared.EntityState{
+				EntityID:  event.EntityID,
+				OrgID:     event.OrgID,
+				CreatedAt: event.Timestamp,
+				UpdatedAt: event.Timestamp,
+			}
+		} else if err != nil {
+			return fmt.Errorf("load entity state for detection: %w", err)
+		} else if err := json.Unmarshal(entry.Value(), &state); err != nil {
 			return fmt.Errorf("decode existing entity state for detection: %w", err)
 		}
 		if state.OrgID != event.OrgID || state.EntityID != event.EntityID {
@@ -167,10 +178,14 @@ func (w *EventWorker) saveDetection(ctx context.Context, event protocol.Detectio
 		}
 		cx := (event.X1 + event.X2) / 2
 		cy := (event.Y1 + event.Y2) / 2
+		dx, dy := 0.0, 0.0
+		if exists {
+			dx, dy = cx-existing.CX, cy-existing.CY
+		}
 		state.Detections.TrackedObjects[event.TrackID] = shared.TrackedObject{
 			TrackID: event.TrackID, Label: event.Label, Confidence: event.Confidence,
 			FrameCount: frameCount, BBox: &shared.BoundingBox{X1: event.X1, Y1: event.Y1, X2: event.X2, Y2: event.Y2},
-			CX: cx, CY: cy, DX: cx - existing.CX, DY: cy - existing.CY,
+			CX: cx, CY: cy, DX: dx, DY: dy,
 			FirstSeen: firstSeen, LastSeen: event.Timestamp, IsActive: true,
 		}
 		state.Detections.Status = "active"
@@ -182,6 +197,18 @@ func (w *EventWorker) saveDetection(ctx context.Context, event protocol.Detectio
 		data, err := json.Marshal(&state)
 		if err != nil {
 			return fmt.Errorf("marshal entity detection state: %w", err)
+		}
+		if creating {
+			if _, err := w.kv.Create(key, data); err != nil {
+				if errors.Is(err, nats.ErrKeyExists) {
+					if err := waitForRetry(ctx, attempt); err != nil {
+						return err
+					}
+					continue
+				}
+				return fmt.Errorf("create entity detection state: %w", err)
+			}
+			return nil
 		}
 		if _, err := w.kv.Update(key, data, entry.Revision()); err != nil {
 			if errors.Is(err, nats.ErrKeyExists) || strings.Contains(err.Error(), "wrong last sequence") {

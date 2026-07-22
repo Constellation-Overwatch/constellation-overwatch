@@ -1,13 +1,30 @@
 package workers
 
 import (
+	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/protocol"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"github.com/nats-io/nats.go"
 )
+
+type conflictKV struct {
+	nats.KeyValue
+	value    []byte
+	revision uint64
+}
+
+func (kv *conflictKV) Get(string) (nats.KeyValueEntry, error) {
+	return memoryKVEntry{value: kv.value, revision: kv.revision}, nil
+}
+
+func (kv *conflictKV) Update(string, []byte, uint64) (uint64, error) {
+	return 0, nats.ErrKeyExists
+}
 
 func TestGoldenGlobalPositionProjectsCanonicalUnits(t *testing.T) {
 	envelope, err := protocol.DecodeTelemetry(protocol.TelemetryV1Golden)
@@ -106,5 +123,56 @@ func TestUpdateBatteryAcceptsMAVLinkUnknownRemaining(t *testing.T) {
 
 	if state.Power.BatteryRemain != -1 {
 		t.Fatalf("battery remaining: got %d want -1", state.Power.BatteryRemain)
+	}
+}
+
+func TestFailedTelemetryPersistDoesNotAdvanceCachedCursor(t *testing.T) {
+	ts := time.Date(2026, 7, 21, 20, 0, 0, 0, time.UTC)
+	initial := &shared.EntityState{
+		EntityID: "gc35-e4b", OrgID: "org-galaxy",
+		TelemetryCursors: map[string]shared.TelemetryCursor{},
+	}
+	encodedState, err := json.Marshal(initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kv := &conflictKV{value: encodedState, revision: 1}
+	w := &TelemetryWorker{
+		BaseWorker: &BaseWorker{name: "TelemetryWorker"},
+		kv:         kv,
+		registry:   &EntityRegistry{entities: map[string]bool{"gc35-e4b": true}},
+		entityCache: map[string]*shared.EntityState{
+			"gc35-e4b": initial,
+		},
+	}
+	envelope := protocol.TelemetryEnvelope{
+		SchemaVersion: protocol.TelemetrySchemaVersion,
+		MessageUID:    "message-conflict",
+		OrgID:         "org-galaxy",
+		EntityID:      "gc35-e4b",
+		MessageType:   "HEARTBEAT",
+		SystemID:      1,
+		ComponentID:   1,
+		Data:          map[string]any{"type": float64(1), "autopilot": float64(1)},
+		Timestamp:     ts,
+	}
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject, err := protocol.TelemetrySubject(envelope.OrgID, envelope.EntityID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := &nats.Msg{Subject: subject, Data: data}
+
+	if err := w.handleTelemetryMessageContext(context.Background(), msg); err == nil {
+		t.Fatal("expected exhausted CAS conflict")
+	}
+	if _, ok := w.entityCache[envelope.EntityID].TelemetryCursors[envelope.MessageType]; ok {
+		t.Fatal("failed persist poisoned cached telemetry cursor")
+	}
+	if err := w.handleTelemetryMessageContext(context.Background(), msg); err == nil {
+		t.Fatal("redelivery was incorrectly treated as a persisted duplicate")
 	}
 }

@@ -102,6 +102,13 @@ func (w *TelemetryWorker) handleTelemetryMessageContext(ctx context.Context, msg
 	if state.OrgID != orgID {
 		return fmt.Errorf("telemetry organization %s does not match entity organization %s", orgID, state.OrgID)
 	}
+	// Work on an isolated copy. The cache is the last successfully persisted
+	// projection; mutating its pointer before a CAS write succeeds can make a
+	// redelivery look stale and silently acknowledge data that never reached KV.
+	state, err = cloneEntityState(state)
+	if err != nil {
+		return fmt.Errorf("clone entity state: %w", err)
+	}
 
 	// Update state based on message type
 	if state.TelemetryCursors == nil {
@@ -130,6 +137,18 @@ func (w *TelemetryWorker) handleTelemetryMessageContext(ctx context.Context, msg
 
 	logger.Debugw("Processed telemetry", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
 	return nil
+}
+
+func cloneEntityState(state *shared.EntityState) (*shared.EntityState, error) {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return nil, err
+	}
+	var clone shared.EntityState
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, err
+	}
+	return &clone, nil
 }
 
 // parseSubject extracts entity_id and org_id from NATS subject

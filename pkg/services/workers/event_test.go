@@ -26,6 +26,28 @@ type memoryKV struct {
 	revision uint64
 }
 
+type createOnMissingKV struct {
+	nats.KeyValue
+	value    []byte
+	revision uint64
+}
+
+func (kv *createOnMissingKV) Get(string) (nats.KeyValueEntry, error) {
+	if kv.revision == 0 {
+		return nil, nats.ErrKeyNotFound
+	}
+	return memoryKVEntry{value: kv.value, revision: kv.revision}, nil
+}
+
+func (kv *createOnMissingKV) Create(_ string, value []byte) (uint64, error) {
+	if kv.revision != 0 {
+		return 0, nats.ErrKeyExists
+	}
+	kv.revision = 1
+	kv.value = append([]byte(nil), value...)
+	return kv.revision, nil
+}
+
 func (kv *memoryKV) Get(string) (nats.KeyValueEntry, error) {
 	return memoryKVEntry{value: kv.value, revision: kv.revision}, nil
 }
@@ -87,5 +109,32 @@ func TestSaveDetectionPreservesTelemetryAndRejectsStaleTrackReplay(t *testing.T)
 	}
 	if kv.revision != revision {
 		t.Fatal("stale detection replay wrote a new KV revision")
+	}
+}
+
+func TestSaveDetectionCreatesProjectionBeforeFirstTelemetry(t *testing.T) {
+	ts := time.Date(2026, 7, 21, 20, 1, 0, 0, time.UTC)
+	kv := &createOnMissingKV{}
+	w := &EventWorker{kv: kv}
+	event := protocol.DetectionEnvelope{
+		SchemaVersion: protocol.TelemetrySchemaVersion, EventUID: "event-first",
+		OrgID: "org-galaxy", EntityID: "camera-1", TrackID: "track-1",
+		Label: "airplane", Confidence: .9, X1: .1, Y1: .2, X2: .3, Y2: .4,
+		Timestamp: ts,
+	}
+	if err := w.saveDetection(context.Background(), event); err != nil {
+		t.Fatal(err)
+	}
+
+	var got shared.EntityState
+	if err := json.Unmarshal(kv.value, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.EntityID != event.EntityID || got.OrgID != event.OrgID {
+		t.Fatalf("created identity = %s/%s", got.OrgID, got.EntityID)
+	}
+	track := got.Detections.TrackedObjects[event.TrackID]
+	if track.FrameCount != 1 || track.DX != 0 || track.DY != 0 {
+		t.Fatalf("first detection projection = %#v", track)
 	}
 }
