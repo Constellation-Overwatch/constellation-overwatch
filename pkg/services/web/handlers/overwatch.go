@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"sync"
@@ -693,7 +694,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				if entityState.OrgName != "" {
 					orgName = entityState.OrgName
 				}
-				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
+				orgHTML.WriteString(renderOrganizationHeader(orgName))
 
 				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithModeAppend()); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
@@ -849,6 +850,10 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			}
 		}()
 	}
+}
+
+func renderOrganizationHeader(orgName string) string {
+	return fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, html.EscapeString(orgName))
 }
 
 // API handler for debugging KV data structure

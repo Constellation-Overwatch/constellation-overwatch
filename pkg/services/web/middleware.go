@@ -1,6 +1,9 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -13,6 +16,7 @@ import (
 	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"github.com/a-h/templ"
 )
 
 // SecurityHeaders adds security response headers to all responses.
@@ -25,18 +29,38 @@ func SecurityHeaders(next http.Handler) http.Handler {
 func SecurityHeadersForConfig(cfg runtimeconfig.Runtime) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			nonce, err := newCSPNonce()
+			if err != nil {
+				logger.Errorw("Failed to generate CSP nonce", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 			w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
 			w.Header().Set("X-XSS-Protection", "0") // Disabled per modern best practice
-			w.Header().Set("Content-Security-Policy", cfg.ContentSecurityPolicy)
+			csp := strings.Replace(
+				cfg.ContentSecurityPolicy,
+				"script-src 'self'",
+				fmt.Sprintf("script-src 'self' 'nonce-%s'", nonce),
+				1,
+			)
+			w.Header().Set("Content-Security-Policy", csp)
 			if cfg.HSTS {
 				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 			}
-			next.ServeHTTP(w, r)
+			next.ServeHTTP(w, r.WithContext(templ.WithNonce(r.Context(), nonce)))
 		})
 	}
+}
+
+func newCSPNonce() (string, error) {
+	data := make([]byte, 16)
+	if _, err := rand.Read(data); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
 }
 
 // RecoverPanic recovers from panics in HTTP handlers, logs the stack trace,

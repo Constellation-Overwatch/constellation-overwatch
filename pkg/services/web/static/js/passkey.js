@@ -288,3 +288,9 @@ async function beginSetupPasskey() {
     btn.textContent = "Register Passkey";
   }
 }
+
+var loginForm = document.getElementById("login-form");
+if (loginForm) loginForm.addEventListener("submit", handleLoginNext);
+
+var setupPasskeyBtn = document.getElementById("setup-passkey-btn");
+if (setupPasskeyBtn) setupPasskeyBtn.addEventListener("click", beginSetupPasskey);

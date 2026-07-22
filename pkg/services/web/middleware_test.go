@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
@@ -25,9 +26,18 @@ func TestSecurityHeadersForProduction(t *testing.T) {
 	if got := rec.Header().Get("Strict-Transport-Security"); got == "" {
 		t.Fatal("production response missing HSTS")
 	}
-	if got := rec.Header().Get("Content-Security-Policy"); got != runtimeconfig.DefaultContentSecurityPolicy {
-		t.Fatalf("CSP = %q", got)
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "script-src 'self' 'nonce-") || scriptDirectiveContains(got, "'unsafe-inline'") {
+		t.Fatalf("production CSP does not enforce nonce-only scripts: %q", got)
 	}
+}
+
+func scriptDirectiveContains(policy, value string) bool {
+	for _, directive := range strings.Split(policy, ";") {
+		if strings.HasPrefix(strings.TrimSpace(directive), "script-src ") {
+			return strings.Contains(directive, value)
+		}
+	}
+	return false
 }
 
 func TestSecurityHeadersDevelopmentOmitsHSTS(t *testing.T) {

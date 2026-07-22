@@ -71,7 +71,6 @@ templ MapPanel() {
 	</div>
 	@MapLibreScript()
 	@common.WHEPScript()
-	@common.C4EntityCardScript()
 }
 
 // MapControls provides the control buttons for the map
@@ -171,8 +170,8 @@ templ MapLibreScript() {
 	<!-- MapLibre GL JS CSS -->
 	<link href="/static/lib/maplibre-gl.css" rel="stylesheet"/>
 	<!-- MapLibre GL JS -->
-	<script src="/static/lib/maplibre-gl.js"></script>
-	<script type="module">
+	<script nonce={ templ.GetNonce(ctx) } src="/static/lib/maplibre-gl.js"></script>
+	<script nonce={ templ.GetNonce(ctx) } type="module">
 		// MapLibre Controller for entity visualization
 		class MapLibreController {
 			constructor() {

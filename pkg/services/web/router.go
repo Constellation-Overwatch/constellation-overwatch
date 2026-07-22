@@ -44,7 +44,9 @@ func NewRouter(
 	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
 	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
 	metricsHandler := handlers.NewMetricsHandler()
-	sseLimit := apimiddleware.LimitConcurrentFor(32, 12*time.Hour)
+	// Capacity is isolated by role and user so a viewer cannot starve operator
+	// or admin observability. Each signed-in user may hold up to four streams.
+	sseLimit := apimiddleware.LimitSSEConcurrentFor(24, 8, 8, 4, 12*time.Hour)
 
 	// Serve static files (no auth required) — uses embedded filesystem
 	staticHandler, err := StaticFileServer()

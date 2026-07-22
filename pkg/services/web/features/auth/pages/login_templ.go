@@ -62,7 +62,20 @@ func LoginPage(errorMsg string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div id=\"status-message\" class=\"login-status hidden\"></div><form id=\"login-form\" class=\"login-form\" onsubmit=\"return handleLoginNext(event)\"><div class=\"input-group\"><svg class=\"input-icon\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z\"></path></svg> <input type=\"email\" id=\"email-input\" name=\"email\" placeholder=\"Email\" required autocomplete=\"email webauthn\"></div><label class=\"remember-me\"><input type=\"checkbox\" id=\"remember-me\" name=\"remember\"> <span>Remember me</span></label> <button type=\"submit\" class=\"login-btn\" id=\"login-next-btn\">Next</button></form></div></div><script src=\"/static/js/passkey.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div id=\"status-message\" class=\"login-status hidden\"></div><form id=\"login-form\" class=\"login-form\"><div class=\"input-group\"><svg class=\"input-icon\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z\"></path></svg> <input type=\"email\" id=\"email-input\" name=\"email\" placeholder=\"Email\" required autocomplete=\"email webauthn\"></div><label class=\"remember-me\"><input type=\"checkbox\" id=\"remember-me\" name=\"remember\"> <span>Remember me</span></label> <button type=\"submit\" class=\"login-btn\" id=\"login-next-btn\">Next</button></form></div></div><script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.GetNonce(ctx))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/auth/pages/login.templ`, Line: 54, Col: 38}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" src=\"/static/js/passkey.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -86,22 +99,35 @@ func SetupPasskeyPage() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Setup Passkey - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Setup Passkey - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for i := 0; i < 20; i++ {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"star\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"star\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div><div class=\"login-box\"><div class=\"login-avatar\"><img src=\"/static/images/c4.png\" alt=\"C4 Overwatch\"></div><h2 class=\"invite-heading\">Setup Passkey</h2><div class=\"subtitle\" style=\"margin-bottom: 16px;\">Register a passkey to secure your account.</div><div id=\"status-message\" class=\"login-status hidden\"></div><button type=\"button\" class=\"login-btn\" id=\"setup-passkey-btn\" onclick=\"beginSetupPasskey()\">Register Passkey</button></div></div><script src=\"/static/js/passkey.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div></div><div class=\"login-box\"><div class=\"login-avatar\"><img src=\"/static/images/c4.png\" alt=\"C4 Overwatch\"></div><h2 class=\"invite-heading\">Setup Passkey</h2><div class=\"subtitle\" style=\"margin-bottom: 16px;\">Register a passkey to secure your account.</div><div id=\"status-message\" class=\"login-status hidden\"></div><button type=\"button\" class=\"login-btn\" id=\"setup-passkey-btn\">Register Passkey</button></div></div><script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.GetNonce(ctx))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/auth/pages/login.templ`, Line: 90, Col: 38}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" src=\"/static/js/passkey.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -125,35 +151,35 @@ func InviteErrorPage(errorMsg string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var4 == nil {
-			templ_7745c5c3_Var4 = templ.NopComponent
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Invalid Invitation - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Invalid Invitation - C4 Overwatch</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/images/favicon.svg\"><link rel=\"stylesheet\" href=\"/static/css/style.css\"></head><body><div class=\"login-page\"><div class=\"warp-tunnel\"><div class=\"starfield\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for i := 0; i < 20; i++ {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"star\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"star\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div></div><div class=\"login-box\"><div class=\"login-avatar\"><img src=\"/static/images/c4.png\" alt=\"C4 Overwatch\"></div><div class=\"login-error\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div></div><div class=\"login-box\"><div class=\"login-avatar\"><img src=\"/static/images/c4.png\" alt=\"C4 Overwatch\"></div><div class=\"login-error\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(errorMsg)
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(errorMsg)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/auth/pages/login.templ`, Line: 118, Col: 40}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><a href=\"/login\" class=\"login-btn\" style=\"text-align:center;text-decoration:none;display:block;\">Go to Login</a></div></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><a href=\"/login\" class=\"login-btn\" style=\"text-align:center;text-decoration:none;display:block;\">Go to Login</a></div></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

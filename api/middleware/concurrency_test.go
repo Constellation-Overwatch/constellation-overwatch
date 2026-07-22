@@ -95,3 +95,56 @@ func TestLimitConcurrentRejectsInvalidLimit(t *testing.T) {
 	}()
 	LimitConcurrent(0)
 }
+
+func TestSSELimitIsolatesRolesAndUsers(t *testing.T) {
+	entered := make(chan struct{})
+	limiter := LimitSSEConcurrentFor(2, 1, 1, 1, 0)
+	handler := limiter(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/hold" {
+			close(entered)
+			<-r.Context().Done()
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := func(ctx context.Context, path, user, role string) *http.Request {
+		ctx = context.WithValue(ctx, ContextKeyUserID, user)
+		ctx = context.WithValue(ctx, ContextKeyUserRole, role)
+		return httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		handler.ServeHTTP(httptest.NewRecorder(), request(ctx, "/hold", "viewer-a", "viewer"))
+	}()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("viewer did not occupy SSE slot")
+	}
+
+	sameUser := httptest.NewRecorder()
+	handler.ServeHTTP(sameUser, request(context.Background(), "/quick", "viewer-a", "viewer"))
+	if sameUser.Code != http.StatusServiceUnavailable {
+		t.Fatalf("same-user status = %d, want %d", sameUser.Code, http.StatusServiceUnavailable)
+	}
+	otherViewer := httptest.NewRecorder()
+	handler.ServeHTTP(otherViewer, request(context.Background(), "/quick", "viewer-b", "viewer"))
+	if otherViewer.Code != http.StatusNoContent {
+		t.Fatalf("other viewer status = %d, want %d", otherViewer.Code, http.StatusNoContent)
+	}
+	admin := httptest.NewRecorder()
+	handler.ServeHTTP(admin, request(context.Background(), "/quick", "admin-a", "admin"))
+	if admin.Code != http.StatusNoContent {
+		t.Fatalf("admin status = %d, want %d", admin.Code, http.StatusNoContent)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("viewer slot was not released")
+	}
+}

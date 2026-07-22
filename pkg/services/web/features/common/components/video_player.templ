@@ -18,7 +18,7 @@ templ VideoPlayer(entityID string, webrtcURL string) {
 		</video>
 		<div class="video-controls">
 			<span class="connection-status" id={ "video-conn-" + entityID }>connecting...</span>
-			<button class="btn-fullscreen" data-entity-id={ entityID } onclick="openVideoFullscreen(this.dataset.entityId)">
+			<button class="btn-fullscreen" data-entity-id={ entityID } data-video-fullscreen>
 				Fullscreen
 			</button>
 		</div>
@@ -29,7 +29,7 @@ templ VideoPlayer(entityID string, webrtcURL string) {
 // Include once per page that needs video playback. Uses a MutationObserver
 // to auto-connect new .video-player elements added via SSE PatchElements.
 templ WHEPScript() {
-	<script>
+	<script nonce={ templ.GetNonce(ctx) }>
 		// ─── Unified WHEP Connection Manager ─────────────────────────
 		const whepConnections = {};
 		const WHEP_MAX_RETRIES = 8;
@@ -206,5 +206,10 @@ templ WHEPScript() {
 				videoEl.webkitRequestFullscreen();
 			}
 		}
+
+		document.addEventListener('click', function(event) {
+			const button = event.target.closest('[data-video-fullscreen]');
+			if (button) openVideoFullscreen(button.dataset.entityId);
+		});
 	</script>
 }

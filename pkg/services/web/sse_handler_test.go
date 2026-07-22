@@ -1,6 +1,9 @@
 package web
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSubjectAllowedForOrganization(t *testing.T) {
 	t.Parallel()
@@ -26,6 +29,23 @@ func TestSubjectAllowedForOrganization(t *testing.T) {
 			t.Parallel()
 			if got := subjectAllowedForOrganization(tt.subject, tt.orgID); got != tt.want {
 				t.Fatalf("subjectAllowedForOrganization(%q, %q) = %v, want %v", tt.subject, tt.orgID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStreamMessageHTMLIsEscaped(t *testing.T) {
+	payload := `<img src=x onerror="fetch('/api/admin/apikeys')">`
+	for name, rendered := range map[string]string{
+		"plain": renderStreamMessage(payload, payload, payload),
+		"typed": renderStreamMessageWithType(payload, payload, payload, payload),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if strings.Contains(rendered, "<img") {
+				t.Fatalf("unescaped attacker-controlled HTML: %s", rendered)
+			}
+			if !strings.Contains(rendered, "&lt;img") {
+				t.Fatalf("escaped payload missing: %s", rendered)
 			}
 		})
 	}

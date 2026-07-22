@@ -35,7 +35,7 @@ templ StreamPanel() {
 			</div>
 		</div>
 	</div>
-	<script>
+	<script nonce={ templ.GetNonce(ctx) }>
 		// Filter stream messages based on selection
 		document.getElementById('stream-filter').addEventListener('change', (e) => {
 			const filter = e.target.value;

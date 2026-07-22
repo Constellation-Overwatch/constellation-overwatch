@@ -166,7 +166,7 @@ templ AnalyticsPanel() {
 			</div>
 		</div>
 
-		<script>
+		<script nonce={ templ.GetNonce(ctx) }>
 			function getTypeColor(type) {
 				const colors = {
 					'aircraft_multirotor': '#00ff88',

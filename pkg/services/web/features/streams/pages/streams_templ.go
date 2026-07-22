@@ -107,7 +107,20 @@ func StreamPanel() templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"stream-panel\" class=\"panel\"><div class=\"panel-header\"><h2>NATS Stream Monitor</h2><select class=\"stream-filter\" id=\"stream-filter\"><option value=\"all\">All Streams</option> <option value=\"entities\">Entities</option> <option value=\"events\">Events</option> <option value=\"telemetry\">Telemetry</option> <option value=\"commands\">Commands</option></select></div><div class=\"stream-container\"><div id=\"stream-messages\" class=\"stream-messages\" data-init=\"@get('/api/streams/sse')\"><div class=\"empty-state\">Connecting to stream...</div></div></div></div><script>\n\t\t// Filter stream messages based on selection\n\t\tdocument.getElementById('stream-filter').addEventListener('change', (e) => {\n\t\t\tconst filter = e.target.value;\n\t\t\tconst messages = document.querySelectorAll('.stream-message');\n\t\t\tmessages.forEach(msg => {\n\t\t\t\tconst subject = msg.dataset.subject;\n\t\t\t\tif (filter === 'all' || subject.includes(filter)) {\n\t\t\t\t\tmsg.style.display = 'block';\n\t\t\t\t} else {\n\t\t\t\t\tmsg.style.display = 'none';\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div id=\"stream-panel\" class=\"panel\"><div class=\"panel-header\"><h2>NATS Stream Monitor</h2><select class=\"stream-filter\" id=\"stream-filter\"><option value=\"all\">All Streams</option> <option value=\"entities\">Entities</option> <option value=\"events\">Events</option> <option value=\"telemetry\">Telemetry</option> <option value=\"commands\">Commands</option></select></div><div class=\"stream-container\"><div id=\"stream-messages\" class=\"stream-messages\" data-init=\"@get('/api/streams/sse')\"><div class=\"empty-state\">Connecting to stream...</div></div></div></div><script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.GetNonce(ctx))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 38, Col: 36}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">\n\t\t// Filter stream messages based on selection\r\n\t\tdocument.getElementById('stream-filter').addEventListener('change', (e) => {\r\n\t\t\tconst filter = e.target.value;\r\n\t\t\tconst messages = document.querySelectorAll('.stream-message');\r\n\t\t\tmessages.forEach(msg => {\r\n\t\t\t\tconst subject = msg.dataset.subject;\r\n\t\t\t\tif (filter === 'all' || subject.includes(filter)) {\r\n\t\t\t\t\tmsg.style.display = 'block';\r\n\t\t\t\t} else {\r\n\t\t\t\t\tmsg.style.display = 'none';\r\n\t\t\t\t}\r\n\t\t\t});\r\n\t\t});\r\n\r\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -131,64 +144,64 @@ func StreamMessage(subject string, timestamp string, data string) templ.Componen
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"stream-message\" data-subject=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(subject)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 57, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><div class=\"msg-header\"><span class=\"msg-subject\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"stream-message\" data-subject=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(subject)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(subject)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 59, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 57, Col: 51}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span> <span class=\"msg-time\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><div class=\"msg-header\"><span class=\"msg-subject\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(timestamp)
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(subject)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 60, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 59, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</span></div><div class=\"msg-body\"><div class=\"msg-data\"><pre>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</span> <span class=\"msg-time\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(data)
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(timestamp)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 63, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 60, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</pre></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></div><div class=\"msg-body\"><div class=\"msg-data\"><pre>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(data)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/streams/pages/streams.templ`, Line: 63, Col: 36}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</pre></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

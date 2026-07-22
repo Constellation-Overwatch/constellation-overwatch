@@ -15,12 +15,11 @@ templ OverwatchPage() {
 		}
 		@entityCardScripts()
 		@components.WHEPScript()
-		@components.C4EntityCardScript()
 	}
 }
 
 templ entityCardScripts() {
-	<script>
+	<script nonce={ templ.GetNonce(ctx) }>
 		// Event delegation for entity card actions (handles dynamically added cards)
 		document.addEventListener('click', function(e) {
 			const target = e.target.closest('[data-action]');

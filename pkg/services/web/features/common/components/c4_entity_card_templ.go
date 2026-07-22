@@ -641,35 +641,4 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 	})
 }
 
-// C4EntityCardScript contains the JS logic for card interaction (toggle detail view).
-// WHEP video connection is handled by the shared WHEPScript (video_player.templ).
-func C4EntityCardScript() templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var39 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var39 == nil {
-			templ_7745c5c3_Var39 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "<script>\n\t\tfunction toggleEntityDetail(entityId) {\n\t\t\tconst card = document.getElementById('c4-entity-' + entityId);\n\t\t\tif (!card) return;\n\n\t\t\tconst body = card.querySelector('.c4-card-body');\n\t\t\tconst isDetailed = card.classList.toggle('detailed');\n\n\t\t\tif (isDetailed) {\n\t\t\t\tbody.style.display = 'block';\n\t\t\t\t// Connect video when expanding (shared WHEP manager)\n\t\t\t\tif (typeof connectWHEP === 'function') connectWHEP(entityId);\n\t\t\t} else {\n\t\t\t\tbody.style.display = 'none';\n\t\t\t\t// Disconnect video when collapsing\n\t\t\t\tif (typeof disconnectWHEP === 'function') disconnectWHEP(entityId);\n\t\t\t}\n\t\t}\n\t</script>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return nil
-	})
-}
-
 var _ = templruntime.GeneratedTemplate

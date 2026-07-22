@@ -49,4 +49,7 @@ func Development() Runtime {
 	}
 }
 
-const DefaultContentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https: http: wss: ws:; media-src 'self' https: http: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+// A per-response nonce is appended to script-src by the web middleware.
+// Inline styles remain temporarily allowed because the current UI renders
+// dynamic style attributes, but production JavaScript never uses unsafe-inline.
+const DefaultContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https: http: wss: ws:; media-src 'self' https: http: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"

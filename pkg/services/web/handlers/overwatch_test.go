@@ -1,10 +1,18 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
+
+func TestOrganizationHeaderEscapesStoredName(t *testing.T) {
+	got := renderOrganizationHeader(`<img src=x onerror="alert(1)">`)
+	if strings.Contains(got, "<img") || !strings.Contains(got, "&lt;img") {
+		t.Fatalf("organization header was not escaped: %s", got)
+	}
+}
 
 func TestParseOverwatchKVKeyPreservesDottedEntityIDs(t *testing.T) {
 	tests := []struct {

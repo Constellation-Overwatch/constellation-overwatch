@@ -383,6 +383,18 @@ async function revokeAPIKey(id) {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+document.querySelectorAll("[data-admin-tab]").forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    switchTab(tab.dataset.adminTab);
+  });
+});
+
+var createInviteBtn = document.getElementById("create-invite-btn");
+if (createInviteBtn) createInviteBtn.addEventListener("click", createInvite);
+
+var createAPIKeyBtn = document.getElementById("create-apikey-btn");
+if (createAPIKeyBtn) createAPIKeyBtn.addEventListener("click", createAPIKey);
+
 loadUsers();
 loadAPIKeys();
 initScopeToggles();

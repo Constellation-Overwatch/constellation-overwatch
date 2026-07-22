@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"time"
@@ -118,7 +119,12 @@ func renderStreamMessage(subject, timestamp, data string) string {
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, data)
+	`,
+		html.EscapeString(subject),
+		html.EscapeString(subject),
+		html.EscapeString(timestamp),
+		html.EscapeString(data),
+	)
 }
 
 // StreamMessagesWithFilter streams filtered NATS messages
@@ -209,7 +215,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	logger.Infow("SSE client connected with filter", "component", "SSE", "remote_addr", r.RemoteAddr, "filter", filter)
 
 	// Send initial connection message
-	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, filter)
+	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, html.EscapeString(filter))
 	sse.PatchElements(initialHTML,
 		datastar.WithSelector("#stream-messages"),
 		datastar.WithModeInner())
@@ -313,5 +319,11 @@ func renderStreamMessageWithType(subject, timestamp, msgType, data string) strin
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, msgType, data)
+	`,
+		html.EscapeString(subject),
+		html.EscapeString(subject),
+		html.EscapeString(timestamp),
+		html.EscapeString(msgType),
+		html.EscapeString(data),
+	)
 }
