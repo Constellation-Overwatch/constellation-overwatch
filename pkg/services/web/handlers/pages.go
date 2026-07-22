@@ -31,9 +31,22 @@ func NewPageHandler(orgSvc *services.OrganizationService, entitySvc *services.En
 }
 
 func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
-	orgs, err := h.orgSvc.ListOrganizations()
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -73,7 +86,15 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+	if orgID == "" {
+		http.Error(w, "org_id required", http.StatusBadRequest)
+		return
+	}
 	entityID := r.URL.Query().Get("entity_id")
 
 	var entity *ontology.Entity
@@ -170,15 +191,33 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 }
 
 func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch all entities
-	entities, err := h.entitySvc.ListAllEntities()
+	var entities []ontology.Entity
+	if orgID == "" {
+		entities, err = h.entitySvc.ListAllEntities()
+	} else {
+		entities, err = h.entitySvc.ListEntities(orgID)
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -204,8 +243,18 @@ func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PageHandler) HandleVideoPage(w http.ResponseWriter, r *http.Request) {
-	// Fetch all entities to populate the dropdown
-	entities, err := h.entitySvc.ListAllEntities()
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var entities []ontology.Entity
+	if orgID == "" {
+		entities, err = h.entitySvc.ListAllEntities()
+	} else {
+		entities, err = h.entitySvc.ListEntities(orgID)
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

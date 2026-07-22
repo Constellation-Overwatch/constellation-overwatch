@@ -13,6 +13,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/dev"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/handlers"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -89,18 +90,18 @@ func NewRouter(
 		})
 		r.Get("/map", pageHandler.HandleMapPage)
 		r.Get("/organizations", pageHandler.HandleEntitiesPage)
-		r.Get("/organizations/entities/new", pageHandler.HandleEntityForm)
-		r.Get("/organizations/entities/edit", pageHandler.HandleEntityForm)
-		r.Get("/organizations/new", pageHandler.HandleOrganizationForm)
-		r.Get("/organizations/edit/{org_id}", datastarHandler.HandleOrganizationEdit)
-		r.Get("/organizations/cancel/{org_id}", datastarHandler.HandleOrganizationCancel)
+		r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Get("/organizations/entities/new", pageHandler.HandleEntityForm)
+		r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Get("/organizations/entities/edit", pageHandler.HandleEntityForm)
+		r.With(RequireAdmin).Get("/organizations/new", pageHandler.HandleOrganizationForm)
+		r.With(RequireAdmin).Get("/organizations/edit/{org_id}", datastarHandler.HandleOrganizationEdit)
+		r.With(RequireAdmin).Get("/organizations/cancel/{org_id}", datastarHandler.HandleOrganizationCancel)
 		r.Get("/streams", pageHandler.HandleStreamsPage)
 		r.Get("/overwatch", pageHandler.HandleOverwatchPage)
 		r.Get("/fleet", pageHandler.HandleFleetPage)
-		r.Get("/fleet/edit/{entity_id}", datastarHandler.HandleFleetEdit)
-		r.Get("/fleet/cancel/{entity_id}", datastarHandler.HandleFleetCancel)
+		r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Get("/fleet/edit/{entity_id}", datastarHandler.HandleFleetEdit)
+		r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Get("/fleet/cancel/{entity_id}", datastarHandler.HandleFleetCancel)
 		r.Get("/video", pageHandler.HandleVideoPage)
-		r.Get("/admin", pageHandler.HandleAdminPage)
+		r.With(RequireAdmin).Get("/admin", pageHandler.HandleAdminPage)
 
 		// Passkey setup & registration
 		r.Get("/setup-passkey", authHandler.HandleSetupPasskey)
@@ -114,26 +115,26 @@ func NewRouter(
 		// Web API: Organizations (Datastar/SSE)
 		r.Route("/api/organizations", func(r chi.Router) {
 			r.Get("/", datastarHandler.HandleListOrganizations)
-			r.Post("/", datastarHandler.HandleCreateOrganization)
-			r.Put("/update", datastarHandler.HandleUpdateOrganization)
-			r.Put("/{org_id}", datastarHandler.HandleUpdateOrganizationByID)
-			r.Delete("/{org_id}", datastarHandler.HandleDeleteOrganization)
+			r.With(RequireAdmin).Post("/", datastarHandler.HandleCreateOrganization)
+			r.With(RequireAdmin).Put("/update", datastarHandler.HandleUpdateOrganization)
+			r.With(RequireAdmin).Put("/{org_id}", datastarHandler.HandleUpdateOrganizationByID)
+			r.With(RequireAdmin).Delete("/{org_id}", datastarHandler.HandleDeleteOrganization)
 		})
 
 		// Web API: Entities (Datastar/SSE)
 		r.Route("/api/entities", func(r chi.Router) {
 			r.Get("/", datastarHandler.HandleListEntities)
-			r.Post("/", datastarHandler.HandleCreateEntity)
-			r.Put("/{entity_id}", datastarHandler.HandleUpdateEntity)
-			r.Delete("/{entity_id}", datastarHandler.HandleDeleteEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Post("/", datastarHandler.HandleCreateEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Put("/{entity_id}", datastarHandler.HandleUpdateEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Delete("/{entity_id}", datastarHandler.HandleDeleteEntity)
 		})
 
 		// Web API: Fleet (Datastar/SSE)
 		r.Route("/api/fleet", func(r chi.Router) {
 			r.Get("/", datastarHandler.HandleListFleet)
-			r.Post("/", datastarHandler.HandleCreateFleetEntity)
-			r.Put("/update", datastarHandler.HandleUpdateFleetEntity)
-			r.Delete("/{entity_id}", datastarHandler.HandleDeleteFleetEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Post("/", datastarHandler.HandleCreateFleetEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Put("/update", datastarHandler.HandleUpdateFleetEntity)
+			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Delete("/{entity_id}", datastarHandler.HandleDeleteFleetEntity)
 			r.Get("/sse", datastarHandler.HandleFleetSSE)
 		})
 
@@ -141,9 +142,9 @@ func NewRouter(
 		r.Get("/api/organizations/sse", datastarHandler.HandleOrganizationsSSE)
 
 		// Web API: Overwatch
-		r.Get("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)
+		r.With(RequireAdmin).Get("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)
 		r.Get("/api/overwatch/kv/watch", overwatchHandler.HandleAPIOverwatchKVWatch)
-		r.Get("/api/overwatch/kv/debug", overwatchHandler.HandleAPIOverwatchKVDebug)
+		r.With(RequireAdmin).Get("/api/overwatch/kv/debug", overwatchHandler.HandleAPIOverwatchKVDebug)
 
 		// Web API: Video
 		r.Get("/api/video/list", videoHandler.HandleAPIVideoList)

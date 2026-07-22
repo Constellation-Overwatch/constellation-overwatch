@@ -10,6 +10,7 @@ import (
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 // SecurityHeaders adds security response headers to all responses.
@@ -114,14 +115,27 @@ func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
 // RequireAdmin is middleware that checks for the admin role in the request context.
 // Must be used after session authentication middleware.
 func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, _ := r.Context().Value(middleware.ContextKeyUserRole).(string)
-		if role != "admin" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return RequireRole(shared.RoleAdmin)(next)
+}
+
+// RequireRole permits only authenticated sessions whose role is explicitly
+// listed. It is intentionally deny-by-default for missing or unknown roles.
+func RequireRole(roles ...string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role := middleware.UserRoleFromContext(r.Context())
+			if _, ok := allowed[role]; !ok {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // clientIP extracts the client IP from the request, checking proxy headers.

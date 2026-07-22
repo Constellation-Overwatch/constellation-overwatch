@@ -32,6 +32,12 @@ func NewVideoHandler(mtxClient *mediamtx.Client, entitySvc *services.EntityServi
 
 // HandleAPIVideoList handles the Datastar SSE stream for the video list
 func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request) {
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
 	// Verify we have a flusher
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -78,7 +84,13 @@ func (h *VideoHandler) HandleAPIVideoList(w http.ResponseWriter, r *http.Request
 		if time.Since(entityCacheTime) < 30*time.Second {
 			return
 		}
-		entities, err := h.entitySvc.ListAllEntities()
+		var entities []ontology.Entity
+		var err error
+		if orgID == "" {
+			entities, err = h.entitySvc.ListAllEntities()
+		} else {
+			entities, err = h.entitySvc.ListEntities(orgID)
+		}
 		if err != nil {
 			logger.Warnw("Video handler: failed to refresh entity cache", "error", err)
 			return
@@ -235,7 +247,31 @@ func (h *VideoHandler) HandleAPIVideoStatus(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
 	streams := h.mtxClient.GetAllStreams()
+	if orgID != "" {
+		entities, listErr := h.entitySvc.ListEntities(orgID)
+		if listErr != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		allowed := make(map[string]struct{}, len(entities))
+		for _, entity := range entities {
+			allowed[entity.EntityID] = struct{}{}
+		}
+		filtered := streams[:0]
+		for _, stream := range streams {
+			if _, ok := allowed[stream.EntityID]; ok {
+				filtered = append(filtered, stream)
+			}
+		}
+		streams = filtered
+	}
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]interface{}{
 		"streams": streams,

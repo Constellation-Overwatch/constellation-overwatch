@@ -1,6 +1,10 @@
 package handlers
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+)
 
 func TestParseOverwatchKVKeyPreservesDottedEntityIDs(t *testing.T) {
 	tests := []struct {
@@ -67,5 +71,33 @@ func TestMergeOverwatchEntityDataUsesFullDottedKey(t *testing.T) {
 	}
 	if state.EntityType != "sensor_fixed" {
 		t.Fatalf("entity type: got %q want sensor_fixed", state.EntityType)
+	}
+}
+
+func TestOverwatchUpdateAllowed(t *testing.T) {
+	t.Parallel()
+
+	known := map[string]string{"entity-a": "org-a", "entity-b": "org-b"}
+	tests := []struct {
+		name   string
+		update overwatchKVUpdate
+		orgID  string
+		want   bool
+	}{
+		{name: "admin sees any update", update: overwatchKVUpdate{State: shared.EntityState{OrgID: "org-b"}}, want: true},
+		{name: "own update", update: overwatchKVUpdate{State: shared.EntityState{OrgID: "org-a"}}, orgID: "org-a", want: true},
+		{name: "cross org update", update: overwatchKVUpdate{State: shared.EntityState{OrgID: "org-b"}}, orgID: "org-a"},
+		{name: "own removal", update: overwatchKVUpdate{EntityID: "entity-a", Removed: true}, orgID: "org-a", want: true},
+		{name: "cross org removal", update: overwatchKVUpdate{EntityID: "entity-b", Removed: true}, orgID: "org-a"},
+		{name: "unknown removal fails closed", update: overwatchKVUpdate{EntityID: "unknown", Removed: true}, orgID: "org-a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := overwatchUpdateAllowed(tt.update, tt.orgID, known); got != tt.want {
+				t.Fatalf("overwatchUpdateAllowed() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
