@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify modules
+        run: go mod verify
+      - name: Verify generated templates
+        run: go tool templ generate -check
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+
+  portable-build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build exact revision
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          suffix=""
+          if [ "$GOOS" = windows ]; then suffix=".exe"; fi
+          mkdir -p dist
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=branch-${GITHUB_SHA} -X main.commit=${GITHUB_SHA} -X main.date=${GITHUB_RUN_STARTED_AT}" \
+            -o "dist/overwatch-${GOOS}-${GOARCH}${suffix}" ./cmd/microlith
+          (cd dist && sha256sum * > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: overwatch-${{ github.sha }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

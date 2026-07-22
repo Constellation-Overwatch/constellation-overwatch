@@ -45,7 +45,6 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/updater"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
@@ -103,11 +102,6 @@ func main() {
 		cmdStart(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
-	case "update":
-		if err := updater.Update(version, false); err != nil {
-			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
-			os.Exit(1)
-		}
 	case "help", "--help", "-h":
 		printHelp()
 	default:
@@ -365,8 +359,7 @@ Usage:
 Commands:
   start          Start the server (headless or TUI)
   version        Print version and exit
-  update         Download and install the latest version
-  help           Show this help message
+	  help           Show this help message
 
 Quick Start:
   overwatch start              Start in headless mode
