@@ -22,6 +22,12 @@ For the SIM canary, the intended shape is:
 
 ## Required environment
 
+Provide production variables through the service supervisor (for example a
+root-owned systemd `EnvironmentFile=`). The binary deliberately refuses to load
+an application `.env` file in production, including one selected with `-env` or
+found through `OVERWATCH_HOME`; this prevents checkout-local configuration from
+silently changing a deployed service.
+
 ```dotenv
 OVERWATCH_ENV=production
 HOST=127.0.0.1

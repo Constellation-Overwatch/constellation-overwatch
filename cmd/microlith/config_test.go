@@ -72,6 +72,23 @@ func TestRuntimeConfigDevelopmentIsVisiblyInsecure(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeEnvRejectsProduction(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(envPath, []byte("OVERWATCH_ENV=production\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OVERWATCH_ENV", "")
+	_ = os.Unsetenv("OVERWATCH_ENV")
+	if _, err := loadRuntimeEnv(envPath); err == nil || !strings.Contains(err.Error(), "must not be enabled") {
+		t.Fatalf("loadRuntimeEnv() error = %v, want production .env rejection", err)
+	}
+
+	t.Setenv("OVERWATCH_ENV", "production")
+	if _, err := loadRuntimeEnv(envPath); err == nil || !strings.Contains(err.Error(), "forbids application .env") {
+		t.Fatalf("loadRuntimeEnv() error = %v, want existing production rejection", err)
+	}
+}
+
 func TestWriteBootstrapFileIsCreateOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bootstrap.txt")
 	secretURL := "https://constellation.tailnet.example/invite/secret"

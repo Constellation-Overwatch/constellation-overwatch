@@ -90,6 +90,26 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// loadRuntimeEnv preserves .env convenience for local development while
+// preventing a production process from inheriting checkout-local settings.
+// Production configuration must come from the service supervisor.
+func loadRuntimeEnv(flagPath string) (string, error) {
+	envPath := findEnvFile(flagPath)
+	if envPath == "" {
+		return "", nil
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OVERWATCH_ENV")), runtimeconfig.ModeProduction) {
+		return "", fmt.Errorf("production forbids application .env files; configure the service supervisor and remove %s", envPath)
+	}
+	if err := godotenv.Load(envPath); err != nil {
+		return "", fmt.Errorf("load %s: %w", envPath, err)
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OVERWATCH_ENV")), runtimeconfig.ModeProduction) {
+		return "", fmt.Errorf("production mode must not be enabled by application .env file %s", envPath)
+	}
+	return envPath, nil
+}
+
 func main() {
 	// No subcommand or help flags → show splash + help
 	if len(os.Args) < 2 {
@@ -126,12 +146,10 @@ func cmdStart(args []string) {
 	startFlags.Parse(args)
 
 	// Load .env file (flags override env vars)
-	if envPath := findEnvFile(*envFile); envPath != "" {
-		if err := godotenv.Load(envPath); err != nil {
-			logger.Warnw("Failed to load config", "path", envPath, "error", err)
-		} else {
-			logger.Infow("Loaded config", "path", envPath)
-		}
+	if envPath, err := loadRuntimeEnv(*envFile); err != nil {
+		logger.Fatalw("Refusing to load configuration", "error", err)
+	} else if envPath != "" {
+		logger.Infow("Loaded development config", "path", envPath)
 	} else {
 		logger.Info("No .env found, using environment variables and flags")
 	}
