@@ -118,7 +118,7 @@ func cmdStart(args []string) {
 	var (
 		tuiMode  = startFlags.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
 		port     = startFlags.String("port", "", "Web UI and API port (default: 8080)")
-		host     = startFlags.String("host", "", "Bind address (default: 0.0.0.0)")
+		host     = startFlags.String("host", "", "Bind address (default: 127.0.0.1)")
 		natsPort = startFlags.String("nats-port", "", "NATS server port (default: 4222)")
 		dataDir  = startFlags.String("data-dir", "", "Data directory (default: ./data)")
 		envFile  = startFlags.String("env", ".env", "Path to .env file")
@@ -378,7 +378,7 @@ Usage:
 Options:
   --tui                Start with TUI dashboard (interactive terminal UI)
   --port <PORT>        HTTP server port for Web UI and REST API (default: 8080)
-  --host <HOST>        Network bind address (default: 0.0.0.0)
+  --host <HOST>        Network bind address (default: 127.0.0.1)
   --nats-port <PORT>   NATS TCP port for edge device connections (default: 4222)
   --data-dir <PATH>    Data directory for database and NATS storage (default: ./data)
   --env <PATH>         Path to .env configuration file (default: .env)
