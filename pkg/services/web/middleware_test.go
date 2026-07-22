@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
@@ -52,5 +53,38 @@ func TestRequireRole(t *testing.T) {
 				t.Fatalf("called = %v, want %v", called, tt.wantCalled)
 			}
 		})
+	}
+}
+
+func TestClientIPIgnoresForwardingHeadersFromUntrustedPeers(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.RemoteAddr = "203.0.113.10:12345"
+	req.Header.Set("X-Forwarded-For", "198.51.100.20")
+	req.Header.Set("X-Real-Ip", "198.51.100.21")
+	if got := clientIP(req); got != "203.0.113.10" {
+		t.Fatalf("clientIP() = %q, want direct peer", got)
+	}
+}
+
+func TestClientIPHonorsForwardingHeadersFromConfiguredProxy(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "198.51.100.20, 127.0.0.1")
+	trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
+	if got := clientIPFromTrustedProxies(req, trusted); got != "198.51.100.20" {
+		t.Fatalf("clientIPFromTrustedProxies() = %q, want forwarded client", got)
+	}
+}
+
+func TestClientIPRejectsInvalidForwardingHeader(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "spoofed")
+	trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
+	if got := clientIPFromTrustedProxies(req, trusted); got != "127.0.0.1" {
+		t.Fatalf("clientIPFromTrustedProxies() = %q, want direct peer fallback", got)
 	}
 }

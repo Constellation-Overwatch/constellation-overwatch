@@ -3,6 +3,7 @@ package web
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -57,6 +58,12 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 // RateLimitByIP returns middleware that limits requests per IP address using
 // a fixed-window counter. Stale entries are cleaned up lazily during requests.
 func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
+	return RateLimitByIPFromTrustedProxies(requestsPerMinute, nil)
+}
+
+// RateLimitByIPFromTrustedProxies honors forwarding headers only when the
+// direct peer belongs to an explicitly configured proxy prefix.
+func RateLimitByIPFromTrustedProxies(requestsPerMinute int, trustedProxies []netip.Prefix) func(http.Handler) http.Handler {
 	type entry struct {
 		mu      sync.Mutex
 		count   int
@@ -69,7 +76,7 @@ func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := clientIP(r)
+			ip := clientIPFromTrustedProxies(r, trustedProxies)
 			now := time.Now()
 
 			// Lazy cleanup: purge stale entries every 2 minutes
@@ -140,15 +147,47 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 
 // clientIP extracts the client IP from the request, checking proxy headers.
 func clientIP(r *http.Request) string {
+	return clientIPFromTrustedProxies(r, nil)
+}
+
+func clientIPFromTrustedProxies(r *http.Request, trustedProxies []netip.Prefix) string {
+	remoteIP := remoteAddressIP(r.RemoteAddr)
+	trusted := false
+	if parsed, err := netip.ParseAddr(remoteIP); err == nil {
+		for _, prefix := range trustedProxies {
+			if prefix.Contains(parsed) {
+				trusted = true
+				break
+			}
+		}
+	}
+	if !trusted {
+		return remoteIP
+	}
+
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		if i := strings.IndexByte(xff, ','); i > 0 {
-			return strings.TrimSpace(xff[:i])
+			xff = xff[:i]
 		}
-		return strings.TrimSpace(xff)
+		if candidate := strings.TrimSpace(xff); validIPAddress(candidate) {
+			return candidate
+		}
 	}
-	if xri := r.Header.Get("X-Real-Ip"); xri != "" {
-		return xri
+	if candidate := strings.TrimSpace(r.Header.Get("X-Real-Ip")); validIPAddress(candidate) {
+		return candidate
 	}
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return ip
+	return remoteIP
+}
+
+func remoteAddressIP(remoteAddr string) string {
+	ip, _, _ := net.SplitHostPort(remoteAddr)
+	if ip != "" {
+		return ip
+	}
+	return remoteAddr
+}
+
+func validIPAddress(value string) bool {
+	_, err := netip.ParseAddr(value)
+	return err == nil
 }

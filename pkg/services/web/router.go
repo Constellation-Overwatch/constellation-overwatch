@@ -1,9 +1,9 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	apimiddleware "github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
@@ -42,6 +42,7 @@ func NewRouter(
 	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
 	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
 	metricsHandler := handlers.NewMetricsHandler()
+	sseLimit := apimiddleware.LimitConcurrentFor(32, 12*time.Hour)
 
 	// Serve static files (no auth required) — uses embedded filesystem
 	staticHandler, err := StaticFileServer()
@@ -51,14 +52,9 @@ func NewRouter(
 
 	// ── Public (no auth) ──────────────────────────────────────────────
 	r.Handle("/static/*", http.StripPrefix("/static/", staticHandler))
-	r.Handle("/metrics", metrics.Handler())
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if err := natsEmbedded.HealthCheck(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprintf(w, `{"status":"unhealthy","error":"nats"}`)
-			return
-		}
+		w.Header().Set("Cache-Control", "no-store")
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	r.HandleFunc("/logout", authHandler.HandleLogout)
@@ -109,8 +105,9 @@ func NewRouter(
 		r.Post("/auth/passkey/register/finish", authHandler.HandlePasskeyRegisterFinish)
 
 		// Metrics dashboard
-		r.Get("/metrics-ui", metricsHandler.HandleMetricsPage)
-		r.Get("/api/metrics/sse", metricsHandler.HandleSSE)
+		r.With(RequireAdmin).Handle("/metrics", metrics.Handler())
+		r.With(RequireAdmin).Get("/metrics-ui", metricsHandler.HandleMetricsPage)
+		r.With(RequireAdmin, sseLimit).Get("/api/metrics/sse", metricsHandler.HandleSSE)
 
 		// Web API: Organizations (Datastar/SSE)
 		r.Route("/api/organizations", func(r chi.Router) {
@@ -135,23 +132,23 @@ func NewRouter(
 			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Post("/", datastarHandler.HandleCreateFleetEntity)
 			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Put("/update", datastarHandler.HandleUpdateFleetEntity)
 			r.With(RequireRole(shared.RoleOperator, shared.RoleAdmin)).Delete("/{entity_id}", datastarHandler.HandleDeleteFleetEntity)
-			r.Get("/sse", datastarHandler.HandleFleetSSE)
+			r.With(sseLimit).Get("/sse", datastarHandler.HandleFleetSSE)
 		})
 
 		// Realtime SSE: Organizations
-		r.Get("/api/organizations/sse", datastarHandler.HandleOrganizationsSSE)
+		r.With(sseLimit).Get("/api/organizations/sse", datastarHandler.HandleOrganizationsSSE)
 
 		// Web API: Overwatch
 		r.With(RequireAdmin).Get("/api/overwatch/kv", overwatchHandler.HandleAPIOverwatchKV)
-		r.Get("/api/overwatch/kv/watch", overwatchHandler.HandleAPIOverwatchKVWatch)
+		r.With(sseLimit).Get("/api/overwatch/kv/watch", overwatchHandler.HandleAPIOverwatchKVWatch)
 		r.With(RequireAdmin).Get("/api/overwatch/kv/debug", overwatchHandler.HandleAPIOverwatchKVDebug)
 
 		// Web API: Video
-		r.Get("/api/video/list", videoHandler.HandleAPIVideoList)
+		r.With(sseLimit).Get("/api/video/list", videoHandler.HandleAPIVideoList)
 		r.Get("/api/video/status", videoHandler.HandleAPIVideoStatus)
 
 		// Web API: Streams
-		r.Get("/api/streams/sse", func(w http.ResponseWriter, r *http.Request) {
+		r.With(sseLimit).Get("/api/streams/sse", func(w http.ResponseWriter, r *http.Request) {
 			sseHandler.StreamMessages(w, r)
 		})
 

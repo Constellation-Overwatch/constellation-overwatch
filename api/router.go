@@ -34,7 +34,6 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 	// Global middleware
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.Throttle(100))
 	r.Use(middleware.MaxBodySize(1 << 20))
 	r.Use(middleware.CORS)
 
@@ -58,13 +57,18 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 	// Public Huma API — serves /docs and /openapi.json on the main router
 	publicAPI := humachi.New(r, config)
-	healthHandler.Register(publicAPI)
+	_ = publicAPI
 
 	// SSE monitor — raw chi (long-lived, not REST)
-	r.Get("/v1/sys/monitor/sse", monitorHandler.SSE)
+	r.With(
+		apiKeyAuth.Authenticate,
+		middleware.RequireScope("admin"),
+		middleware.LimitConcurrentFor(4, time.Hour),
+	).Get("/v1/sys/monitor/sse", monitorHandler.SSE)
 
 	// Authenticated sub-router — chi middleware for auth + timeout
 	authR := chi.NewRouter()
+	authR.Use(chimw.Throttle(100))
 	authR.Use(chimw.Timeout(30 * time.Second))
 	authR.Use(apiKeyAuth.Authenticate)
 
@@ -77,6 +81,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 	// Scope enforcement via Huma middleware (reads context set by chi auth middleware)
 	authAPI.UseMiddleware(scopeMiddleware(authAPI))
+	healthHandler.Register(authAPI)
 
 	// Register CRUD operations (written to shared spec, served on auth router)
 	orgHandler.Register(authAPI)
