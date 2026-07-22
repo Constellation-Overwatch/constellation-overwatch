@@ -167,6 +167,13 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	canonicalScopes, err := shared.NormalizeAPIKeyScopes(req.Scopes)
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		return
+	}
+	req.Scopes = canonicalScopes
+
 	orgID := middleware.OrgIDFromContext(r.Context())
 	if orgID == "" {
 		orgID = "default"

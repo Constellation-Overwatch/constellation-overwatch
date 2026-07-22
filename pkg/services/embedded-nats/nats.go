@@ -388,8 +388,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -758,7 +758,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }
@@ -771,29 +771,28 @@ func (q *quietLogger) Fatalf(format string, v ...any) {
 
 // BuildNATSPermissions converts scope strings to NATS subject permissions.
 func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
-	var pubAllow, subAllow []string
+	if orgID == "" {
+		return nil
+	}
 
-	baseAllow := []string{"$JS.API.>", "_INBOX.>"}
+	var pubAllow, subAllow []string
 
 	for _, scope := range scopes {
 		switch scope {
-		case "nats:all":
-			return &server.Permissions{
-				Publish:   &server.SubjectPermission{Allow: []string{">"}},
-				Subscribe: &server.SubjectPermission{Allow: []string{">"}},
-			}
-		case "nats:telemetry":
+		case shared.ScopeNATSTelemetryWrite:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
-			subAllow = append(subAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
-		case "nats:commands":
+		case shared.ScopeNATSCommandsRead:
 			subAllow = append(subAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:commands:write":
+		case shared.ScopeNATSCommandsWrite:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:entities":
-			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+		case shared.ScopeNATSEntitiesRead:
 			subAllow = append(subAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
-		case "nats:events":
-			subAllow = append(subAllow, "constellation.events.>")
+		case shared.ScopeNATSEntitiesWrite:
+			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+		case shared.ScopeNATSEventsRead:
+			subAllow = append(subAllow, eventSubjectsForOrg(orgID)...)
+		case shared.ScopeNATSEventsWrite:
+			pubAllow = append(pubAllow, eventSubjectsForOrg(orgID)...)
 		}
 	}
 
@@ -802,7 +801,17 @@ func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
 	}
 
 	return &server.Permissions{
-		Publish:   &server.SubjectPermission{Allow: append(baseAllow, pubAllow...)},
-		Subscribe: &server.SubjectPermission{Allow: append(baseAllow, subAllow...)},
+		Publish:   &server.SubjectPermission{Allow: pubAllow},
+		Subscribe: &server.SubjectPermission{Allow: append([]string{"_INBOX.>"}, subAllow...)},
+	}
+}
+
+// Event subjects have both an unclassified organization-first form and a
+// category-first form (for example ISR detections). A single-token wildcard
+// keeps both variants organization-scoped without granting events from peers.
+func eventSubjectsForOrg(orgID string) []string {
+	return []string{
+		fmt.Sprintf("constellation.events.%s.>", orgID),
+		fmt.Sprintf("constellation.events.*.%s.>", orgID),
 	}
 }

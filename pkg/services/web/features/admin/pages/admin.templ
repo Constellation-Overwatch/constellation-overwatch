@@ -66,12 +66,12 @@ templ AdminPage() {
 						<div class="scope-selector" id="scope-selector">
 							<label class="scope-label">API:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="orgs:read" checked/>
-								<span class="scope-chip">orgs:read</span>
+								<input type="checkbox" value="organizations:read" checked/>
+								<span class="scope-chip">organizations:read</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="orgs:write"/>
-								<span class="scope-chip">orgs:write</span>
+								<input type="checkbox" value="organizations:write"/>
+								<span class="scope-chip">organizations:write</span>
 							</label>
 							<label class="scope-toggle">
 								<input type="checkbox" value="entities:read" checked/>
@@ -89,28 +89,20 @@ templ AdminPage() {
 						<div class="scope-selector" id="nats-scope-selector">
 							<label class="scope-label">NATS:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:telemetry"/>
-								<span class="scope-chip">nats:telemetry</span>
+								<input type="checkbox" value="nats:telemetry:write"/>
+								<span class="scope-chip">nats:telemetry:write</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:commands"/>
-								<span class="scope-chip">nats:commands</span>
+								<input type="checkbox" value="nats:commands:read"/>
+								<span class="scope-chip">nats:commands:read</span>
 							</label>
 							<label class="scope-toggle">
 								<input type="checkbox" value="nats:commands:write"/>
 								<span class="scope-chip">nats:commands:write</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:entities"/>
-								<span class="scope-chip">nats:entities</span>
-							</label>
-							<label class="scope-toggle">
-								<input type="checkbox" value="nats:events"/>
-								<span class="scope-chip">nats:events</span>
-							</label>
-							<label class="scope-toggle">
-								<input type="checkbox" value="nats:all"/>
-								<span class="scope-chip">nats:all</span>
+								<input type="checkbox" value="nats:events:write"/>
+								<span class="scope-chip">nats:events:write</span>
 							</label>
 						</div>
 					</div>

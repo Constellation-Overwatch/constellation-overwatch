@@ -74,6 +74,12 @@ type StoredKey struct {
 // scopes are present, an NKey pair is generated and the public key is stored.
 // The plaintext API key and NATS seed are returned exactly once.
 func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, expiresAt *time.Time) (*CreatedKey, error) {
+	canonicalScopes, err := shared.NormalizeAPIKeyScopes(scopes)
+	if err != nil {
+		return nil, err
+	}
+	scopes = canonicalScopes
+
 	keyID := uuid.New().String()
 
 	// Generate 32 random bytes and hex-encode them.
@@ -116,7 +122,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 
 	now := time.Now().Format(time.RFC3339)
 
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		`INSERT INTO api_keys (key_id, user_id, org_id, name, key_hash, key_prefix, scopes, role, nats_pub_key, revoked, expires_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
 		keyID, userID, orgID, name, keyHash, prefix, scopesStr, "operator", natsPubKey, expiresAtStr, now,
@@ -299,7 +305,7 @@ func parseCSV(s string) []string {
 // hasNATSScopes returns true if any scope starts with "nats:".
 func hasNATSScopes(scopes []string) bool {
 	for _, s := range scopes {
-		if strings.HasPrefix(s, "nats:") {
+		if shared.IsNATSScope(s) {
 			return true
 		}
 	}
