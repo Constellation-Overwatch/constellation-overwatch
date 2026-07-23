@@ -142,6 +142,62 @@ func TestNATSPermissionsConformance(t *testing.T) {
 	assertNATSPermissionDenied(t, nc, permissionErrors, "$JS.API.STREAM.CREATE.ATTACK")
 }
 
+func TestInternalUserAndEdgeNKeyAuthenticationCoexist(t *testing.T) {
+	t.Parallel()
+
+	kp, err := nkeys.CreateUser()
+	if err != nil {
+		t.Fatalf("create user nkey: %v", err)
+	}
+	publicKey, err := kp.PublicKey()
+	if err != nil {
+		t.Fatalf("read public key: %v", err)
+	}
+
+	opts := &server.Options{
+		Host:   "127.0.0.1",
+		Port:   server.RANDOM_PORT,
+		NoSigs: true,
+		Users: []*server.User{{
+			Username: internalNATSUsername,
+			Password: "test-internal-password",
+		}},
+	}
+	ns, err := server.NewServer(opts)
+	if err != nil {
+		t.Fatalf("create NATS server: %v", err)
+	}
+	go ns.Start()
+	t.Cleanup(ns.Shutdown)
+	if !ns.ReadyForConnections(5 * time.Second) {
+		t.Fatal("NATS server was not ready")
+	}
+
+	internal, err := nats.Connect(ns.ClientURL(), nats.UserInfo(internalNATSUsername, "test-internal-password"))
+	if err != nil {
+		t.Fatalf("connect internal user: %v", err)
+	}
+	t.Cleanup(internal.Close)
+
+	reloaded := opts.Clone()
+	reloaded.Nkeys = append(reloaded.Nkeys, &server.NkeyUser{Nkey: publicKey})
+	if err := ns.ReloadOptions(reloaded); err != nil {
+		t.Fatalf("reload edge NKey alongside internal user: %v", err)
+	}
+	if err := internal.FlushTimeout(time.Second); err != nil {
+		t.Fatalf("internal user did not survive NKey reload: %v", err)
+	}
+
+	edge, err := nats.Connect(ns.ClientURL(), nats.Nkey(publicKey, kp.Sign))
+	if err != nil {
+		t.Fatalf("connect edge NKey: %v", err)
+	}
+	t.Cleanup(edge.Close)
+	if !edge.HeadersSupported() {
+		t.Fatal("edge connection unexpectedly lacks NATS header support")
+	}
+}
+
 func assertNATSPermissionDenied(t *testing.T, nc *nats.Conn, errors <-chan error, subject string) {
 	t.Helper()
 	if err := nc.Publish(subject, []byte("denied")); err != nil {

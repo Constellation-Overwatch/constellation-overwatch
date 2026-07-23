@@ -42,6 +42,8 @@ type EmbeddedNATS struct {
 	authToken  string          // internal auth token for embedded connections
 }
 
+const internalNATSUsername = "overwatch-internal"
+
 // NKeyRecord is the minimal data needed to restore a NATS credential on startup.
 type NKeyRecord struct {
 	NATSPubKey string
@@ -165,8 +167,13 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		Logtime: true,
 		NoSigs:  true, // Disable built-in signal handlers
 
-		// Internal auth token for embedded connections
-		Authorization: en.authToken,
+		// A named internal user can coexist with the scoped edge NKey users.
+		// The server's single Authorization token mode is mutually exclusive
+		// with Users/Nkeys and would stop accepting edge NKeys after reload.
+		Users: []*server.User{{
+			Username: internalNATSUsername,
+			Password: en.authToken,
+		}},
 	}
 
 	// Configure JetStream limits
@@ -258,7 +265,7 @@ func (en *EmbeddedNATS) connect() error {
 	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
 
 	connectOpts := []nats.Option{
-		nats.Token(en.authToken),
+		nats.UserInfo(internalNATSUsername, en.authToken),
 		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
 		nats.PingInterval(20 * time.Second),
