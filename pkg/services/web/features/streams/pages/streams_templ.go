@@ -120,7 +120,7 @@ func StreamPanel() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">\n\t\t// Filter stream messages based on selection\r\n\t\tdocument.getElementById('stream-filter').addEventListener('change', (e) => {\r\n\t\t\tconst filter = e.target.value;\r\n\t\t\tconst messages = document.querySelectorAll('.stream-message');\r\n\t\t\tmessages.forEach(msg => {\r\n\t\t\t\tconst subject = msg.dataset.subject;\r\n\t\t\t\tif (filter === 'all' || subject.includes(filter)) {\r\n\t\t\t\t\tmsg.style.display = 'block';\r\n\t\t\t\t} else {\r\n\t\t\t\t\tmsg.style.display = 'none';\r\n\t\t\t\t}\r\n\t\t\t});\r\n\t\t});\r\n\r\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">\n\t\t// Filter stream messages based on selection\n\t\tdocument.getElementById('stream-filter').addEventListener('change', (e) => {\n\t\t\tconst filter = e.target.value;\n\t\t\tconst messages = document.querySelectorAll('.stream-message');\n\t\t\tmessages.forEach(msg => {\n\t\t\t\tconst subject = msg.dataset.subject;\n\t\t\t\tif (filter === 'all' || subject.includes(filter)) {\n\t\t\t\t\tmsg.style.display = 'block';\n\t\t\t\t} else {\n\t\t\t\t\tmsg.style.display = 'none';\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
