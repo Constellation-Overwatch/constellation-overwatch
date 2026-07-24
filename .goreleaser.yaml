@@ -33,7 +33,7 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-      - -X main.commit={{.ShortCommit}}
+      - -X main.commit={{.FullCommit}}
       - -X main.date={{.CommitDate}}
 
     # Reproducible builds: use commit timestamp
@@ -55,10 +55,23 @@ archives:
     files:
       - README.md
       - LICENSE*
+      - docs/production-deployment.md
+      - docs/release-assurance.md
+      - packaging/install-linux.sh
+      - packaging/rollback-linux.sh
+      - packaging/uninstall-linux.sh
+      - packaging/constellation-overwatch.service
+      - packaging/overwatch.env.example
+
+sboms:
+  - id: archives
+    artifacts: archive
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Tag }}_checksums.txt"
   algorithm: sha256
+
+report_sizes: true
 
 snapshot:
   version_template: "{{ incpatch .Version }}-next"

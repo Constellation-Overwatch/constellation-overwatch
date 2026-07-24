@@ -26,10 +26,25 @@ jobs:
         run: go mod verify
       - name: Verify generated templates
         run: go tool templ generate -check
+      - name: Verify formatting
+        run: |
+          unformatted="$(git ls-files '*.go' | xargs gofmt -l)"
+          test -z "$unformatted" || {
+            printf 'gofmt required for:\n%s\n' "$unformatted"
+            exit 1
+          }
       - name: Test
         run: go test ./...
+      - name: Race and contract tests
+        run: go test -race -count=1 ./...
       - name: Vet
         run: go vet ./...
+      - name: Verify release configuration
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        with:
+          distribution: goreleaser
+          version: "v2.17.0"
+          args: check
 
   portable-build:
     runs-on: ubuntu-latest

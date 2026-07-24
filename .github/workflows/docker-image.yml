@@ -49,6 +49,24 @@ jobs:
             type=semver,pattern={{major}}
             type=sha
 
+      - name: Build smoke-test image
+        run: docker build --tag "overwatch-smoke:${GITHUB_SHA}" .
+
+      - name: Smoke test non-root image health and port posture
+        run: |
+          cleanup() { docker rm -f overwatch-smoke >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name overwatch-smoke -p 127.0.0.1:18080:8080 "overwatch-smoke:${GITHUB_SHA}"
+          test "$(docker inspect --format '{{.Config.User}}' overwatch-smoke)" = "10001:10001"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs overwatch-smoke
+          exit 1
+
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6

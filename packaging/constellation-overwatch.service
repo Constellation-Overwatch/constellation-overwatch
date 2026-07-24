@@ -1,0 +1,19 @@
+[Unit]
+Description=Constellation Overwatch Hub
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=%h/.config/constellation-overwatch/overwatch.env
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/constellation-overwatch/overwatch.env
+ExecStart=%h/.local/opt/constellation-overwatch/current/overwatch start
+WorkingDirectory=%h/.local/share/constellation-overwatch
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
