@@ -47,6 +47,8 @@ jobs:
           args: check
       - name: Backup and restore contract drill
         run: ./packaging/test-linux-maintenance.sh
+      - name: Installer preservation drill
+        run: ./packaging/test-linux-install.sh
 
   portable-build:
     runs-on: ubuntu-latest

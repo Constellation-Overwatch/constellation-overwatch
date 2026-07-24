@@ -7,6 +7,8 @@ binary="$bundle_dir/overwatch"
 install_root=${OVERWATCH_INSTALL_ROOT:-"$HOME/.local/opt/constellation-overwatch"}
 config_root=${OVERWATCH_CONFIG_ROOT:-"$HOME/.config/constellation-overwatch"}
 unit_root=${OVERWATCH_SYSTEMD_USER_ROOT:-"$HOME/.config/systemd/user"}
+unit_path="$unit_root/constellation-overwatch.service"
+packaged_unit_path="$unit_path.packaged"
 
 if [ ! -x "$binary" ]; then
 	echo "overwatch binary not found next to packaging directory: $binary" >&2
@@ -31,7 +33,17 @@ mkdir -p "$release_dir" "$config_root" "$unit_root" "$HOME/.local/share/constell
 chmod 700 "$config_root" "$HOME/.local/share/constellation-overwatch"
 install -m 0755 "$binary" "$release_dir/overwatch"
 install -m 0644 "$script_dir/overwatch.env.example" "$config_root/overwatch.env.example"
-install -m 0644 "$script_dir/constellation-overwatch.service" "$unit_root/constellation-overwatch.service"
+if [ -e "$unit_path" ] || [ -L "$unit_path" ]; then
+	install -m 0644 "$script_dir/constellation-overwatch.service" "$packaged_unit_path"
+	unit_result="Preserved existing service unit at $unit_path; packaged candidate is $packaged_unit_path."
+	config_result="Existing service configuration was not changed; review the packaged unit candidate before any unit update."
+	service_command="After validating the existing environment files: systemctl --user restart constellation-overwatch.service"
+else
+	install -m 0644 "$script_dir/constellation-overwatch.service" "$unit_path"
+	unit_result="Installed service unit at $unit_path."
+	config_result="Review $config_root/overwatch.env.example, write $config_root/overwatch.env with mode 0600."
+	service_command="Then run: systemctl --user enable --now constellation-overwatch.service"
+fi
 
 if [ -L "$install_root/current" ]; then
 	basename "$(readlink "$install_root/current")" >"$install_root/previous-release"
@@ -45,6 +57,7 @@ fi
 
 printf '%s\n' \
 	"Installed $release_id at $release_dir." \
+	"$unit_result" \
 	"Production was not started and no secret file was created or overwritten." \
-	"Review $config_root/overwatch.env.example, write $config_root/overwatch.env with mode 0600, then run:" \
-	"  systemctl --user enable --now constellation-overwatch.service"
+	"$config_result" \
+	"$service_command"

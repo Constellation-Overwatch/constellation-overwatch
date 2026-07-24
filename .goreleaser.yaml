@@ -61,6 +61,7 @@ archives:
       - packaging/backup-linux.sh
       - packaging/restore-linux.sh
       - packaging/rollback-linux.sh
+      - packaging/test-linux-install.sh
       - packaging/test-linux-maintenance.sh
       - packaging/uninstall-linux.sh
       - packaging/constellation-overwatch.service

@@ -50,6 +50,12 @@ service:
 `uninstall-linux.sh` disables activation but deliberately preserves releases,
 configuration, secrets, databases, JetStream state, and backups.
 
+An existing operator-managed systemd unit is never overwritten. The installer
+keeps it active and writes the packaged candidate beside it as
+`constellation-overwatch.service.packaged` for explicit review. Fresh nodes
+receive the packaged unit normally. CI exercises both paths and verifies that
+a split public/secret environment-file unit remains byte-for-byte unchanged.
+
 ## Consistent backup and restore drill
 
 The maintenance scripts snapshot the complete data root—including SQLite and

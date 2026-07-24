@@ -38,6 +38,7 @@ jobs:
           go test -race -count=1 ./...
           go vet ./...
           ./packaging/test-linux-maintenance.sh
+          ./packaging/test-linux-install.sh
 
       - name: Install Syft for archive SBOMs
         uses: anchore/sbom-action/download-syft@f8bdd1d8ac5e901a77a92f111440fdb1b593736b # v0.20.6
