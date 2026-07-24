@@ -204,7 +204,6 @@ async function registerPasskey() {
       timeout: options.publicKey.timeout || 60000,
       attestation: options.publicKey.attestation || "none",
       authenticatorSelection: options.publicKey.authenticatorSelection || {
-        authenticatorAttachment: "platform",
         residentKey: "required",
         userVerification: "preferred",
       },
@@ -237,6 +236,10 @@ async function registerPasskey() {
           credential.response.attestationObject
         ),
         clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+        transports:
+          typeof credential.response.getTransports === "function"
+            ? credential.response.getTransports()
+            : [],
       },
     };
 
@@ -248,12 +251,14 @@ async function registerPasskey() {
 
     if (finishRes.ok) {
       showStatus("Passkey registered successfully.", false);
-      return true;
+      return finishRes.json().catch(function () {
+        return { redirect: "/login" };
+      });
     }
 
     var finishErr = await finishRes.text();
     showStatus("Registration failed: " + finishErr, true);
-    return false;
+    return null;
   } catch (err) {
     if (err.name === "NotAllowedError") {
       showStatus("Registration was cancelled or not allowed.", true);
@@ -265,7 +270,7 @@ async function registerPasskey() {
     } else {
       showStatus("Registration error: " + err.message, true);
     }
-    return false;
+    return null;
   }
 }
 
@@ -279,10 +284,10 @@ async function beginSetupPasskey() {
   btn.textContent = "Registering...";
   hideStatus();
 
-  var ok = await registerPasskey();
-  if (ok) {
+  var result = await registerPasskey();
+  if (result) {
     showStatus("Passkey registered! Redirecting...", false);
-    window.location.href = "/overwatch";
+    window.location.href = result.redirect || "/login";
   } else {
     btn.disabled = false;
     btn.textContent = "Register Passkey";

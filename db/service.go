@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -120,7 +121,10 @@ func (s *Service) Start(ctx context.Context) error {
 
 	// Apply incremental migrations for existing databases
 	if err := s.MigrateSchema(); err != nil {
-		logger.Warnw("Schema migration encountered issues", "error", err)
+		// Keep existing authentication and read paths available. Security-
+		// sensitive writers verify their required indexes independently and
+		// fail closed until the migration is reconciled.
+		logger.Errorw("Schema migration blocked; affected writes remain disabled", "error", err)
 	}
 
 	return nil
@@ -358,10 +362,50 @@ func (s *Service) MigrateSchema() error {
 	// random session keys that store the user reference alongside the session).
 	if !s.columnExists("webauthn_sessions", "user_ref") {
 		if _, err := s.DB.Exec(`ALTER TABLE webauthn_sessions ADD COLUMN user_ref TEXT DEFAULT ''`); err != nil {
-			logger.Warnw("Failed to add user_ref column to webauthn_sessions", "error", err)
+			return fmt.Errorf("failed to add webauthn session user reference: %w", err)
 		} else {
 			logger.Info("Added user_ref column to webauthn_sessions")
 		}
+	}
+
+	if err := s.ensureUniqueWebAuthnCredentialIDs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureUniqueWebAuthnCredentialIDs makes the credential ID a database-level
+// invariant. Duplicate rows are not deleted automatically because choosing a
+// winner could transfer a credential between users or discard a newer
+// authenticator state. Startup fails cleanly until an operator reconciles them.
+func (s *Service) ensureUniqueWebAuthnCredentialIDs() error {
+	var duplicateGroups int
+	err := s.DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM (
+			SELECT credential_id
+			FROM webauthn_credentials
+			GROUP BY credential_id
+			HAVING COUNT(*) > 1
+		)`,
+	).Scan(&duplicateGroups)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to inspect WebAuthn credential IDs: %w", err)
+	}
+	if duplicateGroups > 0 {
+		return fmt.Errorf("cannot enforce unique WebAuthn credential IDs: %d duplicate credential ID group(s) require operator reconciliation", duplicateGroups)
+	}
+
+	if _, err := s.DB.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_webauthn_creds_credential_id_unique
+		ON webauthn_credentials(credential_id)`); err != nil {
+		return fmt.Errorf("failed to create unique WebAuthn credential ID index: %w", err)
+	}
+
+	// The former non-unique index is redundant once the unique index exists.
+	if _, err := s.DB.Exec(`DROP INDEX IF EXISTS idx_webauthn_creds_cred_id`); err != nil {
+		return fmt.Errorf("failed to remove legacy WebAuthn credential ID index: %w", err)
 	}
 
 	return nil
