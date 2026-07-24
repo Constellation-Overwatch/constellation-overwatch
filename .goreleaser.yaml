@@ -58,7 +58,10 @@ archives:
       - docs/production-deployment.md
       - docs/release-assurance.md
       - packaging/install-linux.sh
+      - packaging/backup-linux.sh
+      - packaging/restore-linux.sh
       - packaging/rollback-linux.sh
+      - packaging/test-linux-maintenance.sh
       - packaging/uninstall-linux.sh
       - packaging/constellation-overwatch.service
       - packaging/overwatch.env.example

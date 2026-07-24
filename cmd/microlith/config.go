@@ -122,7 +122,11 @@ func validateProductionConfig(cfg runtimeconfig.Runtime, lookup envLookup) error
 
 	secret, _ := lookup("OVERWATCH_KEY_HASH_SECRET")
 	secretLower := strings.ToLower(secret)
-	if len(secret) < 32 || strings.Contains(secretLower, "changeme") || strings.Contains(secretLower, "example") {
+	if len(secret) < 32 ||
+		strings.Contains(secretLower, "changeme") ||
+		strings.Contains(secretLower, "example") ||
+		strings.Contains(secretLower, "placeholder") ||
+		strings.Contains(secretLower, "replace") {
 		return fmt.Errorf("OVERWATCH_KEY_HASH_SECRET must be at least 32 characters and non-demo")
 	}
 	parsedEmail, err := mail.ParseAddress(cfg.AdminEmail)

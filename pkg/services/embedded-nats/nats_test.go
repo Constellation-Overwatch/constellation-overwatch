@@ -135,11 +135,33 @@ func TestNATSPermissionsConformance(t *testing.T) {
 	}
 	assertNoNATSError(t, permissionErrors)
 
+	allowedCommands, err := nc.SubscribeSync("constellation.commands.org-a.>")
+	if err != nil {
+		t.Fatalf("subscribe allowed commands: %v", err)
+	}
+	t.Cleanup(func() { _ = allowedCommands.Unsubscribe() })
+	if err := nc.FlushTimeout(time.Second); err != nil {
+		t.Fatalf("flush allowed command subscription: %v", err)
+	}
+	assertNoNATSError(t, permissionErrors)
+
 	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.telemetry.org-b.entity-1")
 	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.isr.org-b.entity-1.detection.track-1")
 	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.org-a.entity-1.shutdown")
 	assertNATSPermissionDenied(t, nc, permissionErrors, "constellation.events.isr.org-a.entity-1.shutdown")
-	assertNATSPermissionDenied(t, nc, permissionErrors, "$JS.API.STREAM.CREATE.ATTACK")
+	assertNATSSubscribePermissionDenied(t, nc, permissionErrors, "constellation.commands.org-b.>")
+	assertNATSPermissionDenied(t, nc, permissionErrors, "$KV.org-a.entity-1")
+	assertNATSPermissionDenied(t, nc, permissionErrors, "$KV.org-b.entity-1")
+	assertNATSSubscribePermissionDenied(t, nc, permissionErrors, "$KV.org-b.>")
+	for _, controlSubject := range []string{
+		"$JS.API.STREAM.CREATE.ATTACK",
+		"$JS.API.STREAM.UPDATE.ATTACK",
+		"$JS.API.STREAM.DELETE.ATTACK",
+		"$JS.API.CONSUMER.CREATE.ATTACK.edge",
+		"$JS.API.STREAM.CREATE.KV_ATTACK",
+	} {
+		assertNATSPermissionDenied(t, nc, permissionErrors, controlSubject)
+	}
 }
 
 func TestInternalUserAndEdgeNKeyAuthenticationCoexist(t *testing.T) {
@@ -211,6 +233,27 @@ func assertNATSPermissionDenied(t *testing.T, nc *nats.Conn, errors <-chan error
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("publish %q did not fail with a permission violation", subject)
+	}
+}
+
+func assertNATSSubscribePermissionDenied(t *testing.T, nc *nats.Conn, errors <-chan error, subject string) {
+	t.Helper()
+	sub, err := nc.SubscribeSync(subject)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+			return
+		}
+		t.Fatalf("subscribe %q returned unexpected error: %v", subject, err)
+	}
+	t.Cleanup(func() { _ = sub.Unsubscribe() })
+	_ = nc.FlushTimeout(time.Second)
+	select {
+	case err := <-errors:
+		if !strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+			t.Fatalf("subscribe %q produced unexpected error: %v", subject, err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("subscribe %q did not fail with a permission violation", subject)
 	}
 }
 

@@ -50,6 +50,39 @@ service:
 `uninstall-linux.sh` disables activation but deliberately preserves releases,
 configuration, secrets, databases, JetStream state, and backups.
 
+## Consistent backup and restore drill
+
+The maintenance scripts snapshot the complete data root—including SQLite and
+the embedded NATS/JetStream store—only while an active user service is stopped.
+The backup receives a SHA-256 sidecar and metadata record:
+
+```sh
+./packaging/backup-linux.sh \
+  /absolute/data/constellation-overwatch \
+  /absolute/backups/constellation-overwatch
+```
+
+Both commands fail closed unless the named user-systemd service can be verified.
+For an independently stopped, non-systemd process, the operator must explicitly
+set `OVERWATCH_OFFLINE_MAINTENANCE=1`.
+
+Restore requires an explicit confirmation token, validates the checksum and
+archive paths, retains the displaced data directory, and automatically
+reactivates it if a previously active service fails startup or health:
+
+```sh
+./packaging/restore-linux.sh \
+  /absolute/backups/constellation-overwatch/constellation-overwatch-TIMESTAMP.tar.gz \
+  /absolute/data/constellation-overwatch \
+  constellation-overwatch.service \
+  --confirm-restore
+```
+
+CI runs `test-linux-maintenance.sh`, which backs up synthetic SQLite and
+JetStream state, corrupts both, restores the archive, and verifies both files.
+Fleet acceptance still performs the same drill against a canary copy before a
+production restore is trusted.
+
 ## Containers
 
 The container bases are pinned by OCI index digest. The runtime uses UID/GID

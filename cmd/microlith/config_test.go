@@ -50,6 +50,9 @@ func TestRuntimeConfigProductionFailsClosed(t *testing.T) {
 		}, wantErr: "must not contain"},
 		{name: "RP mismatch", mutate: func(env map[string]string) { env["OVERWATCH_RPID"] = "other.example" }, wantErr: "not a registrable suffix"},
 		{name: "demo secret", mutate: func(env map[string]string) { env["OVERWATCH_KEY_HASH_SECRET"] = "changeme-changeme-changeme-changeme" }, wantErr: "non-demo"},
+		{name: "packaged placeholder secret", mutate: func(env map[string]string) {
+			env["OVERWATCH_KEY_HASH_SECRET"] = "REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS"
+		}, wantErr: "non-demo"},
 		{name: "wildcard bind", mutate: func(env map[string]string) { env["HOST"] = "0.0.0.0" }, wantErr: "explicit interface"},
 		{name: "development routes", mutate: func(env map[string]string) { env["GO_ENV"] = "development" }, wantErr: "forbidden"},
 		{name: "insecure cookies", mutate: func(env map[string]string) { env["OVERWATCH_INSECURE"] = "true" }, wantErr: "forbidden"},

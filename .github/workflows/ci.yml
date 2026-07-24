@@ -45,6 +45,8 @@ jobs:
           distribution: goreleaser
           version: "v2.17.0"
           args: check
+      - name: Backup and restore contract drill
+        run: ./packaging/test-linux-maintenance.sh
 
   portable-build:
     runs-on: ubuntu-latest
