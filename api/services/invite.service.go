@@ -440,11 +440,11 @@ func (s *InviteService) RevokePendingInvitesByIssuer(issuerUserID string) (int, 
 		_ = tx.Rollback()
 	}()
 
-	var issuerOrgID, issuerRole string
+	var issuerRole string
 	if err := tx.QueryRow(
-		`SELECT org_id, role FROM users WHERE user_id = ?`,
+		`SELECT role FROM users WHERE user_id = ?`,
 		issuerUserID,
-	).Scan(&issuerOrgID, &issuerRole); err != nil {
+	).Scan(&issuerRole); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("%w: invite issuer does not exist", ErrInviteForbidden)
 		}
@@ -484,10 +484,6 @@ func (s *InviteService) RevokePendingInvitesByIssuer(issuerUserID string) (int, 
 		); err != nil {
 			_ = rows.Close()
 			return 0, fmt.Errorf("failed to scan pending invite: %w", err)
-		}
-		if invite.orgID != issuerOrgID {
-			_ = rows.Close()
-			return 0, fmt.Errorf("%w: pending invite belongs to another organization", ErrInviteForbidden)
 		}
 		pending = append(pending, invite)
 	}

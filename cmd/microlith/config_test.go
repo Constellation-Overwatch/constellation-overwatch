@@ -214,6 +214,55 @@ func TestBootstrapAdminSelectsOnlyIncompleteDefaultOrganizationAdmin(t *testing.
 	}
 }
 
+func TestBootstrapAdminIgnoresIncompleteAdminWhenDefaultOrganizationHasNone(t *testing.T) {
+	dbSvc, err := db.New(&db.Config{
+		DBPath:         filepath.Join(t.TempDir(), "bootstrap-no-default-admin.db"),
+		MaxOpenConns:   1,
+		MaxIdleConns:   1,
+		AutoInitialize: true,
+	})
+	if err != nil {
+		t.Fatalf("create database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := dbSvc.Close(); err != nil {
+			t.Errorf("close database: %v", err)
+		}
+	})
+
+	if _, err := dbSvc.DB.Exec(
+		`INSERT INTO organizations (org_id, name, org_type)
+		 VALUES ('default', 'Default Organization', 'commercial'),
+		        ('org-b', 'Organization B', 'commercial')`,
+	); err != nil {
+		t.Fatalf("insert organizations: %v", err)
+	}
+	if err := apiservices.NewUserService(dbSvc.DB).CreateUser(&apiservices.User{
+		UserID:            "admin-b",
+		OrgID:             "org-b",
+		Username:          "admin-b",
+		Email:             "admin-b@example.test",
+		Role:              "admin",
+		NeedsPasskeySetup: true,
+	}); err != nil {
+		t.Fatalf("create non-default admin: %v", err)
+	}
+
+	cfg := runtimeconfig.Development()
+	cfg.BaseURL = "http://localhost:8080"
+	if err := bootstrapAdmin(dbSvc, cfg); err != nil {
+		t.Fatalf("bootstrapAdmin() error = %v, want nil", err)
+	}
+
+	var count int
+	if err := dbSvc.DB.QueryRow(`SELECT COUNT(*) FROM invites`).Scan(&count); err != nil {
+		t.Fatalf("count invites: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("invite count = %d, want 0", count)
+	}
+}
+
 func validProductionEnv(t *testing.T) map[string]string {
 	t.Helper()
 	root, err := filepath.Abs(t.TempDir())

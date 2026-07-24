@@ -432,13 +432,29 @@ func TestRevokePendingInvitesByIssuerAuditsEveryLifecycleChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create recovery invite: %v", err)
 	}
+	legacyCrossOrgID := "legacy-cross-org"
+	now := time.Now()
+	if _, err := conn.Exec(
+		`INSERT INTO invites
+		 (invite_id, org_id, email, role, invited_by_user_id, token_hash, purpose,
+		  status, expires_at, created_at, updated_at)
+		 VALUES (?, 'org-2', 'legacy@example.com', 'viewer', 'admin-1', ?,
+		         'admin_recovery', 'pending', ?, ?, ?)`,
+		legacyCrossOrgID,
+		"legacy-cross-org-token-hash",
+		now.Add(time.Hour).Format(time.RFC3339),
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+	); err != nil {
+		t.Fatalf("insert legacy cross-org invite: %v", err)
+	}
 
 	revoked, err := svc.RevokePendingInvitesByIssuer("admin-1")
 	if err != nil {
 		t.Fatalf("revoke pending invites: %v", err)
 	}
-	if revoked != 2 {
-		t.Fatalf("revoked = %d, want 2", revoked)
+	if revoked != 3 {
+		t.Fatalf("revoked = %d, want 3", revoked)
 	}
 
 	for _, want := range []struct {
@@ -447,6 +463,7 @@ func TestRevokePendingInvitesByIssuerAuditsEveryLifecycleChange(t *testing.T) {
 	}{
 		{initial.InviteID, "passkey.initial_setup.revoked"},
 		{recovery.InviteID, "passkey.admin_recovery.revoked"},
+		{legacyCrossOrgID, "passkey.admin_recovery.revoked"},
 	} {
 		var status string
 		var actor, changes string
