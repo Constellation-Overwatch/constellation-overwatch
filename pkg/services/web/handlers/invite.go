@@ -139,7 +139,7 @@ func (h *InviteHandler) HandleFinalizeInvite(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Mark the invite as accepted.
-	if err := h.inviteSvc.AcceptInvite(invite.InviteID); err != nil {
+	if err := h.inviteSvc.AcceptInvite(invite.InviteID, user.UserID); err != nil {
 		logger.Errorf("Failed to mark invite %s as accepted: %v", invite.InviteID, err)
 		sendError(w, http.StatusGone, "GONE", "This invite has already been used or expired")
 		return

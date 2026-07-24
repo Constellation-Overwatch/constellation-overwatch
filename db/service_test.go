@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,32 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestHealthReportsIncompleteMigration(t *testing.T) {
+	conn, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "health.db"))
+	if err != nil {
+		t.Fatalf("open health database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close health database: %v", err)
+		}
+	})
+
+	svc := &Service{
+		DB:           conn,
+		migrationErr: errors.New("purpose migration failed"),
+	}
+	err = svc.Health()
+	if err == nil || !strings.Contains(err.Error(), "schema migration incomplete") {
+		t.Fatalf("health error = %v, want migration-incomplete error", err)
+	}
+
+	svc.migrationErr = nil
+	if err := svc.Health(); err != nil {
+		t.Fatalf("healthy database: %v", err)
+	}
+}
 
 func newLegacyCredentialDB(t *testing.T) *Service {
 	t.Helper()
@@ -42,6 +69,18 @@ func newLegacyCredentialDB(t *testing.T) *Service {
 			credential_id TEXT NOT NULL,
 			credential_data TEXT NOT NULL,
 			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE invites (
+			invite_id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			role TEXT NOT NULL,
+			token_hash TEXT NOT NULL UNIQUE,
+			invited_by_user_id TEXT NOT NULL,
+			status TEXT NOT NULL,
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
 		)`,
 		`CREATE INDEX idx_webauthn_creds_cred_id ON webauthn_credentials(credential_id)`,
 	} {
@@ -90,6 +129,19 @@ func TestMigrateSchemaAddsUniqueCredentialIndexIdempotently(t *testing.T) {
 	}
 	if legacyCount != 0 {
 		t.Fatalf("legacy non-unique index count = %d, want 0", legacyCount)
+	}
+
+	if !svc.columnExists("invites", "purpose") {
+		t.Fatal("invite purpose column was not migrated")
+	}
+	var defaultPurpose string
+	if err := svc.DB.QueryRow(
+		`SELECT dflt_value FROM pragma_table_info('invites') WHERE name = 'purpose'`,
+	).Scan(&defaultPurpose); err != nil {
+		t.Fatalf("read invite purpose default: %v", err)
+	}
+	if defaultPurpose != "'initial_setup'" {
+		t.Fatalf("invite purpose default = %q, want 'initial_setup'", defaultPurpose)
 	}
 }
 

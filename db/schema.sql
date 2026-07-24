@@ -242,6 +242,7 @@ CREATE TABLE invites (
   role TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('viewer', 'operator', 'commander', 'admin')),
   token_hash TEXT NOT NULL UNIQUE,
   invited_by_user_id TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'initial_setup' CHECK(purpose IN ('initial_setup', 'admin_recovery')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'expired', 'revoked')),
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),

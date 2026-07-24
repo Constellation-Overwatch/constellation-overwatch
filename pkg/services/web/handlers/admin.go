@@ -133,8 +133,17 @@ func (h *AdminHandler) HandleRevokeInvite(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.inviteSvc.RevokeInvite(inviteID); err != nil {
+	revokedBy := middleware.UserIDFromContext(r.Context())
+	if err := h.inviteSvc.RevokeInvite(inviteID, revokedBy); err != nil {
 		logger.Errorf("Failed to revoke invite %s: %v", inviteID, err)
+		if errors.Is(err, services.ErrInviteForbidden) {
+			sendError(w, http.StatusForbidden, "FORBIDDEN", "Invite cannot be revoked by this user")
+			return
+		}
+		if errors.Is(err, shared.ErrNotFound) {
+			sendError(w, http.StatusConflict, "NOT_PENDING", "Invite is not pending")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke invite")
 		return
 	}

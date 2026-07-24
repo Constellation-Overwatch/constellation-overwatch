@@ -21,8 +21,9 @@ var schemaFS embed.FS
 
 // Service represents the database service with connection management
 type Service struct {
-	DB     *sql.DB
-	DBPath string
+	DB           *sql.DB
+	DBPath       string
+	migrationErr error
 }
 
 // Config holds database configuration
@@ -123,8 +124,12 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := s.MigrateSchema(); err != nil {
 		// Keep existing authentication and read paths available. Security-
 		// sensitive writers verify their required indexes independently and
-		// fail closed until the migration is reconciled.
+		// fail closed until the migration is reconciled. Health also reports
+		// degraded so a dead recovery surface cannot hide behind a green node.
+		s.migrationErr = err
 		logger.Errorw("Schema migration blocked; affected writes remain disabled", "error", err)
+	} else {
+		s.migrationErr = nil
 	}
 
 	return nil
@@ -319,6 +324,9 @@ func (s *Service) Health() error {
 	if s.DB == nil {
 		return fmt.Errorf("database connection is nil")
 	}
+	if s.migrationErr != nil {
+		return fmt.Errorf("schema migration incomplete: %w", s.migrationErr)
+	}
 	return s.DB.Ping()
 }
 
@@ -366,6 +374,19 @@ func (s *Service) MigrateSchema() error {
 		} else {
 			logger.Info("Added user_ref column to webauthn_sessions")
 		}
+	}
+
+	// Persist why an invite can create an enrollment-only session. Existing
+	// rows predate explicit purposes and remain initial_setup; all new
+	// existing-account grants are written as admin_recovery.
+	if !s.columnExists("invites", "purpose") {
+		if _, err := s.DB.Exec(
+			`ALTER TABLE invites ADD COLUMN purpose TEXT NOT NULL DEFAULT 'initial_setup'
+			 CHECK(purpose IN ('initial_setup', 'admin_recovery'))`,
+		); err != nil {
+			return fmt.Errorf("failed to add invite purpose: %w", err)
+		}
+		logger.Info("Added purpose column to invites")
 	}
 
 	if err := s.migrateAPIKeyScopeAliases(); err != nil {

@@ -483,15 +483,12 @@ func bootstrapAdmin(dbService *db.Service, cfg runtimeconfig.Runtime) error {
 		}
 	}
 
-	if _, err := database.Exec(
-		`UPDATE invites SET status = 'revoked', updated_at = ? WHERE invited_by_user_id = ? AND status = 'pending'`,
-		time.Now().Format(time.RFC3339), adminUserID,
-	); err != nil {
+	inviteSvc := services.NewInviteService(database)
+	if _, err := inviteSvc.RevokePendingInvitesByIssuer(adminUserID); err != nil {
 		return fmt.Errorf("revoke stale bootstrap invites: %w", err)
 	}
 
-	inviteSvc := services.NewInviteService(database)
-	_, plainToken, err := inviteSvc.CreateInvite("default", adminEmail, "admin", adminUserID)
+	_, plainToken, err := inviteSvc.CreateInitialSetupInvite("default", adminEmail, "admin", adminUserID)
 	if err != nil {
 		return fmt.Errorf("create bootstrap invite: %w", err)
 	}
