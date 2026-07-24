@@ -5,12 +5,18 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      existing_tag:
+        description: Existing locally published release tag to verify and attest
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   release:
+    if: github.event_name == 'push'
     name: GoReleaser
     runs-on: ubuntu-latest
     permissions:
@@ -51,6 +57,43 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest published archives, checksums, and SBOMs
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*_checksums.txt
+            dist/*.sbom.json
+
+  attest-existing-release:
+    if: github.event_name == 'workflow_dispatch'
+    name: Attest existing release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ inputs.existing_tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download published release assets
+        run: |
+          test -n "$RELEASE_TAG"
+          mkdir dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir dist
+
+      - name: Verify release inventory and checksums
+        run: |
+          test "$(find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 6
+          test "$(find dist -maxdepth 1 -type f -name '*.sbom.json' | wc -l)" -eq 6
+          test "$(find dist -maxdepth 1 -type f -name '*_checksums.txt' | wc -l)" -eq 1
+          checksums="$(find dist -maxdepth 1 -type f -name '*_checksums.txt')"
+          (cd dist && sha256sum --check "$(basename "$checksums")")
 
       - name: Attest published archives, checksums, and SBOMs
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
