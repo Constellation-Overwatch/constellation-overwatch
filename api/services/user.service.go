@@ -14,11 +14,11 @@ import (
 
 // UserService manages user CRUD operations and role assignments.
 type UserService struct {
-	db *sql.DB
+	db DBTX
 }
 
 // NewUserService creates a new UserService with the given database connection.
-func NewUserService(db *sql.DB) *UserService {
+func NewUserService(db DBTX) *UserService {
 	return &UserService{db: db}
 }
 

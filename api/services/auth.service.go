@@ -88,10 +88,16 @@ func NewWebAuthn() (*webauthn.WebAuthn, error) {
 		baseURL = "http://localhost:8080"
 	}
 
+	return NewWebAuthnWithConfig(rpID, []string{baseURL})
+}
+
+// NewWebAuthnWithConfig constructs the relying party from the validated
+// startup snapshot instead of rereading mutable environment variables.
+func NewWebAuthnWithConfig(rpID string, origins []string) (*webauthn.WebAuthn, error) {
 	cfg := &webauthn.Config{
 		RPDisplayName: "Constellation Overwatch",
 		RPID:          rpID,
-		RPOrigins:     []string{baseURL},
+		RPOrigins:     origins,
 	}
 
 	wa, err := webauthn.New(cfg)

@@ -9,19 +9,35 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 )
 
 // SecurityHeaders adds security response headers to all responses.
 func SecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
-		w.Header().Set("X-XSS-Protection", "0") // Disabled per modern best practice
-		next.ServeHTTP(w, r)
-	})
+	return SecurityHeadersWithConfig(nil)(next)
+}
+
+// SecurityHeadersWithConfig binds CSP and HSTS to the validated startup
+// snapshot. HSTS is emitted only in production.
+func SecurityHeadersWithConfig(runtime *runtimeconfig.Runtime) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=()")
+			w.Header().Set("X-XSS-Protection", "0") // Disabled per modern best practice
+			if runtime != nil {
+				w.Header().Set("X-Overwatch-Environment", runtime.Environment)
+				w.Header().Set("Content-Security-Policy", runtime.ContentSecurity)
+				if runtime.StrictTransport != "" {
+					w.Header().Set("Strict-Transport-Security", runtime.StrictTransport)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RecoverPanic recovers from panics in HTTP handlers, logs the stack trace,
@@ -56,6 +72,12 @@ func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 // RateLimitByIP returns middleware that limits requests per IP address using
 // a fixed-window counter. Stale entries are cleaned up lazily during requests.
 func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
+	return RateLimitByIPWithConfig(requestsPerMinute, nil)
+}
+
+// RateLimitByIPWithConfig trusts forwarding headers only when the direct peer
+// matches an explicitly configured proxy CIDR.
+func RateLimitByIPWithConfig(requestsPerMinute int, runtime *runtimeconfig.Runtime) func(http.Handler) http.Handler {
 	type entry struct {
 		mu      sync.Mutex
 		count   int
@@ -68,7 +90,7 @@ func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := clientIP(r)
+			ip := clientIP(r, runtime)
 			now := time.Now()
 
 			// Lazy cleanup: purge stale entries every 2 minutes
@@ -149,17 +171,37 @@ func RequireRole(allowed ...string) func(http.Handler) http.Handler {
 	}
 }
 
-// clientIP extracts the client IP from the request, checking proxy headers.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i > 0 {
-			return strings.TrimSpace(xff[:i])
+// clientIP extracts the direct client IP. Forwarding headers are considered
+// only for explicitly trusted proxy peers.
+func clientIP(r *http.Request, runtime *runtimeconfig.Runtime) string {
+	if runtime != nil && runtime.RemoteIsTrustedProxy(r.RemoteAddr) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			hops := strings.Split(xff, ",")
+			for i := len(hops) - 1; i >= 0; i-- {
+				hop := strings.TrimSpace(hops[i])
+				if net.ParseIP(hop) == nil {
+					return directClientIP(r.RemoteAddr)
+				}
+				if !runtime.RemoteIsTrustedProxy(hop) {
+					return hop
+				}
+			}
+			return directClientIP(r.RemoteAddr)
 		}
-		return strings.TrimSpace(xff)
+		if xri := r.Header.Get("X-Real-Ip"); xri != "" {
+			xri = strings.TrimSpace(xri)
+			if net.ParseIP(xri) != nil {
+				return xri
+			}
+		}
 	}
-	if xri := r.Header.Get("X-Real-Ip"); xri != "" {
-		return xri
+	return directClientIP(r.RemoteAddr)
+}
+
+func directClientIP(remoteAddr string) string {
+	ip, _, _ := net.SplitHostPort(remoteAddr)
+	if ip == "" {
+		return remoteAddr
 	}
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return ip
 }

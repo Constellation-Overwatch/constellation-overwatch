@@ -20,11 +20,11 @@ const (
 
 // InviteService manages organization invitation tokens.
 type InviteService struct {
-	db *sql.DB
+	db DBTX
 }
 
 // NewInviteService creates a new InviteService with the given database connection.
-func NewInviteService(db *sql.DB) *InviteService {
+func NewInviteService(db DBTX) *InviteService {
 	return &InviteService{db: db}
 }
 

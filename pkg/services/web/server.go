@@ -10,12 +10,14 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/nats-io/nats.go"
 )
 
@@ -31,10 +33,15 @@ type Server struct {
 	mux          chi.Router
 	server       *http.Server
 	bindAddr     string
+	runtime      *runtimeconfig.Runtime
 }
 
 // NewServer creates a new web server instance
 func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler) (*Server, error) {
+	return newServer(dbService, nc, natsEmbedded, apiHandler, nil)
+}
+
+func newServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler, runtime *runtimeconfig.Runtime) (*Server, error) {
 	// Create MediaMTX client (nil if MEDIAMTX_API_URL is not set)
 	mtxClient := mediamtx.New(mediamtx.DefaultConfig())
 
@@ -47,6 +54,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 		mtxClient:    mtxClient,
+		runtime:      runtime,
 	}
 
 	database := dbService.GetDB()
@@ -55,16 +63,27 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 	sessionAuth := middleware.NewSessionAuth(database)
 
 	// Initialize WebAuthn relying party
-	wa, err := services.NewWebAuthn()
-	if err != nil {
-		logger.Warnw("WebAuthn initialization failed, passkey auth disabled", "error", err)
+	var wa *webauthn.WebAuthn
+	var waErr error
+	if runtime == nil {
+		wa, waErr = services.NewWebAuthn()
+	} else {
+		wa, waErr = services.NewWebAuthnWithConfig(runtime.RPID, runtime.AllowedOrigins)
+	}
+	if waErr != nil {
+		logger.Warnw("WebAuthn initialization failed, passkey auth disabled", "error", waErr)
 	}
 
 	// Initialize services
 	authSvc := services.NewAuthService(database, wa)
 	userSvc := services.NewUserService(database)
 	inviteSvc := services.NewInviteService(database)
-	apiKeySvc := services.NewAPIKeyService(database)
+	var apiKeySvc *services.APIKeyService
+	if runtime == nil {
+		apiKeySvc = services.NewAPIKeyService(database)
+	} else {
+		apiKeySvc = services.NewAPIKeyServiceWithSecret(database, runtime.KeyHashSecret)
+	}
 
 	// Restore NATS NKey users from API keys on startup.
 	if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
@@ -86,6 +105,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler,
 		s.mtxClient, s.apiHandler, sessionAuth,
 		authSvc, userSvc, inviteSvc, apiKeySvc,
+		runtime,
 	)
 
 	return s, nil
@@ -106,6 +126,17 @@ func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddedn
 	return server, nil
 }
 
+// NewWebServiceWithConfig creates a web service from the immutable validated
+// startup configuration.
+func NewWebServiceWithConfig(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler, runtime *runtimeconfig.Runtime) (*Server, error) {
+	server, err := newServer(dbService, nc, natsEmbedded, apiHandler, runtime)
+	if err != nil {
+		return nil, err
+	}
+	server.bindAddr = net.JoinHostPort(runtime.Host, runtime.Port)
+	return server, nil
+}
+
 // Start starts the web server and MediaMTX client
 func (s *Server) Start(ctx context.Context) error {
 	logger.Infof("Starting web server on %s", s.bindAddr)
@@ -121,7 +152,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.server = &http.Server{
 		Addr:              s.bindAddr,
-		Handler:           RecoverPanic(SecurityHeaders(MaxBodySize(1 << 20)(s.mux))),
+		Handler:           RecoverPanic(SecurityHeadersWithConfig(s.runtime)(MaxBodySize(1 << 20)(s.mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      0, // Disabled — SSE endpoints are long-lived

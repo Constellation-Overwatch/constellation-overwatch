@@ -187,3 +187,21 @@ func TestGetWebAuthnSessionConsumesExactlyOnce(t *testing.T) {
 		t.Fatalf("consume outcomes: successes=%d not_found=%d, want 1 and 1", successes, notFound)
 	}
 }
+
+func TestNewWebAuthnWithConfigUsesExactValidatedOrigins(t *testing.T) {
+	wa, err := NewWebAuthnWithConfig(
+		"galaxyuas.com",
+		[]string{"https://hub.galaxyuas.com", "https://backup.galaxyuas.com"},
+	)
+	if err != nil {
+		t.Fatalf("NewWebAuthnWithConfig: %v", err)
+	}
+	if wa.Config.RPID != "galaxyuas.com" {
+		t.Fatalf("RPID = %q", wa.Config.RPID)
+	}
+	if len(wa.Config.RPOrigins) != 2 ||
+		wa.Config.RPOrigins[0] != "https://hub.galaxyuas.com" ||
+		wa.Config.RPOrigins[1] != "https://backup.galaxyuas.com" {
+		t.Fatalf("RPOrigins = %#v", wa.Config.RPOrigins)
+	}
+}

@@ -24,7 +24,10 @@ var apiKeyHMACWarnOnce sync.Once
 // hashAPIKey computes the HMAC-SHA256 hex digest when OVERWATCH_KEY_HASH_SECRET
 // is set, falling back to plain SHA-256 for development.
 func hashAPIKey(raw string) string {
-	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+	return hashAPIKeyWithSecret(raw, os.Getenv("OVERWATCH_KEY_HASH_SECRET"))
+}
+
+func hashAPIKeyWithSecret(raw, secret string) string {
 	if secret == "" {
 		apiKeyHMACWarnOnce.Do(func() {
 			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash for API keys")
@@ -40,12 +43,19 @@ func hashAPIKey(raw string) string {
 // APIKeyService manages the lifecycle of API keys including creation,
 // revocation, validation, and usage tracking.
 type APIKeyService struct {
-	db *sql.DB
+	db            *sql.DB
+	keyHashSecret string
 }
 
 // NewAPIKeyService creates a new APIKeyService with the given database connection.
 func NewAPIKeyService(db *sql.DB) *APIKeyService {
-	return &APIKeyService{db: db}
+	return NewAPIKeyServiceWithSecret(db, os.Getenv("OVERWATCH_KEY_HASH_SECRET"))
+}
+
+// NewAPIKeyServiceWithSecret binds key creation to the validated startup
+// snapshot.
+func NewAPIKeyServiceWithSecret(db *sql.DB, secret string) *APIKeyService {
+	return &APIKeyService{db: db, keyHashSecret: secret}
 }
 
 // CreatedKey is returned from CreateKey and contains the plaintext key (shown
@@ -85,7 +95,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 	plaintext := "c4_live_" + hex.EncodeToString(raw)
 	prefix := plaintext[:16] // "c4_live_" plus first 8 hex chars
 
-	keyHash := hashAPIKey(plaintext)
+	keyHash := hashAPIKeyWithSecret(plaintext, s.keyHashSecret)
 
 	scopesStr := strings.Join(scopes, ",")
 

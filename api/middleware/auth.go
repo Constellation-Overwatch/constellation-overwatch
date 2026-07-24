@@ -235,26 +235,38 @@ func secureCookies() bool {
 
 // SetSessionCookie sets the session cookie on the response
 func SetSessionCookie(w http.ResponseWriter, token string) {
+	SetSessionCookieWithSecure(w, token, secureCookies())
+}
+
+// SetSessionCookieWithSecure writes the session cookie using the validated
+// startup policy supplied by the caller.
+func SetSessionCookieWithSecure(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   int(sessionDuration.Seconds()),
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // ClearSessionCookie clears the session cookie
 func ClearSessionCookie(w http.ResponseWriter) {
+	ClearSessionCookieWithSecure(w, secureCookies())
+}
+
+// ClearSessionCookieWithSecure clears the session cookie with attributes that
+// match the validated startup policy.
+func ClearSessionCookieWithSecure(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }

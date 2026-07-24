@@ -8,6 +8,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/handlers"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -17,6 +18,16 @@ import (
 )
 
 func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
+	return newRouter(db, nats, nil)
+}
+
+// NewRouterWithConfig creates an API router whose origin policy comes from the
+// validated startup snapshot.
+func NewRouterWithConfig(db *sql.DB, nats *embeddednats.EmbeddedNATS, runtime *runtimeconfig.Runtime) http.Handler {
+	return newRouter(db, nats, runtime)
+}
+
+func newRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS, runtime *runtimeconfig.Runtime) http.Handler {
 	r := chi.NewRouter()
 
 	// Services
@@ -30,13 +41,22 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	monitorHandler := handlers.NewMonitorHandler()
 
 	// API key authentication middleware
-	apiKeyAuth := middleware.NewAPIKeyMiddleware(db)
+	var apiKeyAuth *middleware.APIKeyMiddleware
+	if runtime == nil {
+		apiKeyAuth = middleware.NewAPIKeyMiddleware(db)
+	} else {
+		apiKeyAuth = middleware.NewAPIKeyMiddlewareWithSecret(db, runtime.KeyHashSecret)
+	}
 
 	// Global middleware
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Throttle(100))
 	r.Use(middleware.MaxBodySize(1 << 20))
-	r.Use(middleware.CORS)
+	if runtime == nil {
+		r.Use(middleware.CORS)
+	} else {
+		r.Use(middleware.CORSWithOriginCheck(runtime.OriginAllowed))
+	}
 
 	// Huma API configuration (shared OpenAPI spec)
 	config := huma.DefaultConfig("Constellation Overwatch API", "1.0.0")

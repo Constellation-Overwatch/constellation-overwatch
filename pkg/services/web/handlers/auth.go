@@ -22,14 +22,22 @@ type AuthHandler struct {
 	sessionAuth *middleware.SessionAuth
 	authSvc     *services.AuthService
 	userSvc     *services.UserService
+	secure      bool
 }
 
 // NewAuthHandler creates a new auth handler
 func NewAuthHandler(sessionAuth *middleware.SessionAuth, authSvc *services.AuthService, userSvc *services.UserService) *AuthHandler {
+	return NewAuthHandlerWithSecureCookies(sessionAuth, authSvc, userSvc, secureCookies())
+}
+
+// NewAuthHandlerWithSecureCookies binds cookie attributes to the validated
+// startup policy.
+func NewAuthHandlerWithSecureCookies(sessionAuth *middleware.SessionAuth, authSvc *services.AuthService, userSvc *services.UserService, secure bool) *AuthHandler {
 	return &AuthHandler{
 		sessionAuth: sessionAuth,
 		authSvc:     authSvc,
 		userSvc:     userSvc,
+		secure:      secure,
 	}
 }
 
@@ -61,7 +69,7 @@ func (h *AuthHandler) HandlePasskeyLoginBegin(w http.ResponseWriter, r *http.Req
 	user, err := h.authSvc.GetUserByEmail(req.Email)
 	if err != nil || len(user.Credentials) == 0 {
 		// User not found or has no credentials: return a fake challenge to prevent enumeration.
-		writeFakeChallenge(w, h.authSvc.WebAuthn().Config.RPID)
+		writeFakeChallenge(w, h.authSvc.WebAuthn().Config.RPID, h.secure)
 		return
 	}
 
@@ -80,7 +88,7 @@ func (h *AuthHandler) HandlePasskeyLoginBegin(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	setWebAuthnSessionCookie(w, sessionKey)
+	setWebAuthnSessionCookie(w, sessionKey, h.secure)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(options)
@@ -100,7 +108,7 @@ func (h *AuthHandler) HandlePasskeyLoginFinish(w http.ResponseWriter, r *http.Re
 		return
 	}
 	sessionKey := cookie.Value
-	clearWebAuthnSessionCookie(w)
+	clearWebAuthnSessionCookie(w, h.secure)
 
 	// The fake key is set by writeFakeChallenge for unknown/credentialless users.
 	if sessionKey == "fake" {
@@ -140,7 +148,7 @@ func (h *AuthHandler) HandlePasskeyLoginFinish(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	middleware.SetSessionCookie(w, token)
+	middleware.SetSessionCookieWithSecure(w, token, h.secure)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "redirect": "/overwatch"})
 }
 
@@ -183,7 +191,7 @@ func (h *AuthHandler) HandlePasskeyRegisterBegin(w http.ResponseWriter, r *http.
 		return
 	}
 
-	setWebAuthnSessionCookie(w, sessionKey)
+	setWebAuthnSessionCookie(w, sessionKey, h.secure)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(options)
@@ -220,7 +228,7 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session expired, please try again"})
 		return
 	}
-	clearWebAuthnSessionCookie(w)
+	clearWebAuthnSessionCookie(w, h.secure)
 
 	user, err := h.authSvc.GetUserByID(userID)
 	if err != nil {
@@ -274,7 +282,7 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Passkey registered; please log out before continuing"})
 			return
 		}
-		middleware.ClearSessionCookie(w)
+		middleware.ClearSessionCookieWithSecure(w, h.secure)
 		redirect = "/login"
 	}
 
@@ -287,7 +295,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		h.sessionAuth.DestroySession(cookie.Value)
 	}
 
-	middleware.ClearSessionCookie(w)
+	middleware.ClearSessionCookieWithSecure(w, h.secure)
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
@@ -305,7 +313,7 @@ func (h *AuthHandler) HandleSetupPasskey(w http.ResponseWriter, r *http.Request)
 // fail to find a matching credential. Using a fake allowCredentials entry
 // (rather than an empty list) prevents the browser from prompting discoverable
 // credentials stored in iCloud Keychain / platform authenticators.
-func writeFakeChallenge(w http.ResponseWriter, rpID string) {
+func writeFakeChallenge(w http.ResponseWriter, rpID string, secure bool) {
 	challenge := make([]byte, 32)
 	_, _ = crand.Read(challenge)
 
@@ -328,7 +336,7 @@ func writeFakeChallenge(w http.ResponseWriter, rpID string) {
 	}
 
 	// Set a throwaway session cookie so the finish handler path is consistent.
-	setWebAuthnSessionCookie(w, "fake")
+	setWebAuthnSessionCookie(w, "fake", secure)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -355,28 +363,28 @@ func secureCookies() bool {
 }
 
 // setWebAuthnSessionCookie writes the WebAuthn session key cookie.
-func setWebAuthnSessionCookie(w http.ResponseWriter, key string) {
+func setWebAuthnSessionCookie(w http.ResponseWriter, key string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     webauthnSessionCookie,
 		Value:    key,
 		Path:     "/",
 		MaxAge:   300,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
 // clearWebAuthnSessionCookie clears the WebAuthn session key cookie.
 // Attributes mirror setWebAuthnSessionCookie so browsers reliably delete it.
-func clearWebAuthnSessionCookie(w http.ResponseWriter) {
+func clearWebAuthnSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     webauthnSessionCookie,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secureCookies(),
+		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }

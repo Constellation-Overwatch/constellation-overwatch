@@ -22,16 +22,24 @@ type InviteHandler struct {
 	userSvc     *services.UserService
 	authSvc     *services.AuthService
 	sessionAuth *middleware.SessionAuth
+	secure      bool
 }
 
 // NewInviteHandler creates a new InviteHandler with the required service
 // dependencies.
 func NewInviteHandler(inviteSvc *services.InviteService, userSvc *services.UserService, authSvc *services.AuthService, sessionAuth *middleware.SessionAuth) *InviteHandler {
+	return NewInviteHandlerWithSecureCookies(inviteSvc, userSvc, authSvc, sessionAuth, false)
+}
+
+// NewInviteHandlerWithSecureCookies binds the enrollment cookie to the
+// validated startup policy.
+func NewInviteHandlerWithSecureCookies(inviteSvc *services.InviteService, userSvc *services.UserService, authSvc *services.AuthService, sessionAuth *middleware.SessionAuth, secure bool) *InviteHandler {
 	return &InviteHandler{
 		inviteSvc:   inviteSvc,
 		userSvc:     userSvc,
 		authSvc:     authSvc,
 		sessionAuth: sessionAuth,
+		secure:      secure,
 	}
 }
 
@@ -152,7 +160,7 @@ func (h *InviteHandler) HandleFinalizeInvite(w http.ResponseWriter, r *http.Requ
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Account created but session failed")
 		return
 	}
-	middleware.SetSessionCookie(w, sessionToken)
+	middleware.SetSessionCookieWithSecure(w, sessionToken, h.secure)
 
 	http.Redirect(w, r, "/setup-passkey", http.StatusSeeOther)
 }

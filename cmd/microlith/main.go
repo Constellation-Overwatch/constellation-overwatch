@@ -36,6 +36,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -145,6 +146,25 @@ func cmdStart(args []string) {
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
 
+	runtimeConfig, err := runtimeconfig.LoadRuntime()
+	if err != nil {
+		logger.Fatalw("Invalid runtime configuration; refusing startup before service initialization", "error", err)
+	}
+	if err := ensureRuntimeDirectories(runtimeConfig); err != nil {
+		logger.Fatalw("Failed to prepare runtime directories", "error", err)
+	}
+	if runtimeConfig.IsProduction() {
+		logger.Infow("Production configuration validated",
+			"bind", runtimeConfig.Host+":"+runtimeConfig.Port,
+			"base_url", runtimeConfig.BaseURL,
+			"rp_id", runtimeConfig.RPID,
+			"data_dir", runtimeConfig.DataDir,
+			"backup_dir", runtimeConfig.BackupDir,
+		)
+	} else {
+		logger.Warn("Running in DEVELOPMENT mode; fail-closed production requirements are not active")
+	}
+
 	// Variables for TUI mode
 	var tuiProgram *tea.Program
 	var tuiErrCh <-chan error
@@ -181,7 +201,12 @@ func cmdStart(args []string) {
 
 	// 1. Initialize Database
 	logger.Info("Initializing database service...")
-	dbService, err := db.NewService()
+	dbService, err := db.New(&db.Config{
+		DBPath:         filepath.Join(runtimeConfig.DataDir, "db", "constellation.db"),
+		MaxOpenConns:   1,
+		MaxIdleConns:   1,
+		AutoInitialize: true,
+	})
 	if err != nil {
 		logger.Fatalw("Failed to initialize database service", "error", err)
 	}
@@ -191,7 +216,9 @@ func cmdStart(args []string) {
 
 	// 2. Initialize Embedded NATS
 	logger.Info("Initializing NATS service...")
-	natsService, err := embeddednats.NewService()
+	natsConfig := embeddednats.DefaultConfig()
+	natsConfig.DataDir = filepath.Join(runtimeConfig.DataDir, "overwatch")
+	natsService, err := embeddednats.New(natsConfig)
 	if err != nil {
 		logger.Fatalw("Failed to initialize NATS service", "error", err)
 	}
@@ -213,15 +240,17 @@ func cmdStart(args []string) {
 	}
 
 	// 4. Bootstrap admin user if none exist
-	bootstrapAdmin(dbService)
+	if err := bootstrapAdmin(dbService, runtimeConfig); err != nil {
+		logger.Fatalw("Secure admin bootstrap failed", "error", err)
+	}
 
 	// 5. Initialize API Router
 	logger.Info("Initializing API router...")
-	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
+	apiHandler := api.NewRouterWithConfig(dbService.GetDB(), natsService, runtimeConfig)
 
 	// 6. Initialize Web Server
 	logger.Info("Initializing web server...")
-	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
+	webServer, err := web.NewWebServiceWithConfig(dbService, nc, natsService, apiHandler, runtimeConfig)
 	if err != nil {
 		logger.Fatalw("Failed to initialize web server", "error", err)
 	}
@@ -382,7 +411,11 @@ TUI Controls:
 
 Environment:
   All options can also be set via environment variables or .env file:
-  PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
+  OVERWATCH_ENV, PORT, HOST, NATS_PORT, OVERWATCH_DATA_DIR
+
+  Production mode also requires explicit HTTPS/RPID/origins, key hashing,
+  backup, admin identity, trusted proxy policy, and secure bootstrap output.
+  See docs/production-deployment.md.
 
   Priority: CLI flags > environment variables > .env file > defaults
 
@@ -395,74 +428,122 @@ Endpoints:
 
 // bootstrapAdmin ensures at least one admin user exists for first-time setup.
 // If no users exist, it creates the default org, a bootstrap admin, and a
-// one-time invite token. The invite URL is printed to the console; there is no
+// one-time invite token. Production writes setup material only to an exclusive
+// mode-0600 file; development prints it to the local terminal. There is no
 // zero-credential login path.
-func bootstrapAdmin(dbService *db.Service) {
+func bootstrapAdmin(dbService *db.Service, runtime *runtimeconfig.Runtime) error {
 	database := dbService.GetDB()
 
 	var count int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
-		logger.Warnw("Failed to check user count for bootstrap", "error", err)
-		return
+		return fmt.Errorf("failed to check user count for bootstrap: %w", err)
 	}
 	if count > 0 {
-		return
+		return nil
 	}
 
 	logger.Info("No users found, bootstrapping default organization and admin user...")
 
+	var bootstrapOutput *os.File
+	removeBootstrapOutput := false
+	if runtime.IsProduction() {
+		parent := filepath.Dir(runtime.BootstrapFile)
+		if err := os.MkdirAll(parent, 0700); err != nil {
+			return fmt.Errorf("create bootstrap output directory: %w", err)
+		}
+		var err error
+		bootstrapOutput, err = os.OpenFile(runtime.BootstrapFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if err != nil {
+			return fmt.Errorf("open exclusive bootstrap output %s: %w", runtime.BootstrapFile, err)
+		}
+		removeBootstrapOutput = true
+		defer func() {
+			_ = bootstrapOutput.Close()
+			if removeBootstrapOutput {
+				_ = os.Remove(runtime.BootstrapFile)
+			}
+		}()
+	}
+
+	tx, err := database.Begin()
+	if err != nil {
+		return fmt.Errorf("begin bootstrap transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	// Ensure the default organization exists
-	_, err := database.Exec(
+	_, err = tx.Exec(
 		`INSERT OR IGNORE INTO organizations (org_id, name, org_type, description) VALUES (?, ?, ?, ?)`,
 		"default", "Default Organization", "commercial", "Auto-created default organization",
 	)
 	if err != nil {
-		logger.Errorw("Failed to create default organization", "error", err)
-		return
+		return fmt.Errorf("create default organization: %w", err)
 	}
 
-	// Read admin email from env var, fallback to admin@localhost
-	adminEmail := os.Getenv("OVERWATCH_ADMIN_EMAIL")
-	if adminEmail == "" {
-		adminEmail = "admin@localhost"
-	}
-
-	userSvc := services.NewUserService(database)
+	userSvc := services.NewUserService(tx)
 	admin := &services.User{
 		OrgID:             "default",
-		Username:          adminEmail, // email IS the identity
-		Email:             adminEmail,
+		Username:          runtime.AdminEmail, // email IS the identity
+		Email:             runtime.AdminEmail,
 		Role:              "admin",
 		NeedsPasskeySetup: true,
 	}
 
 	if err := userSvc.CreateUser(admin); err != nil {
-		logger.Errorw("Failed to create bootstrap admin", "error", err)
-		return
+		return fmt.Errorf("create bootstrap admin: %w", err)
 	}
 
 	// Generate a one-time invite so the admin can set up their passkey.
-	inviteSvc := services.NewInviteService(database)
-	_, plainToken, err := inviteSvc.CreateInvite("default", adminEmail, "admin", admin.UserID)
+	inviteSvc := services.NewInviteService(tx)
+	_, plainToken, err := inviteSvc.CreateInvite("default", runtime.AdminEmail, "admin", admin.UserID)
 	if err != nil {
-		logger.Errorw("Failed to create bootstrap invite", "error", err)
-		return
+		return fmt.Errorf("create bootstrap invite: %w", err)
 	}
 
-	// Print setup instructions to console
-	host := os.Getenv("HOST")
-	if host == "" || host == "0.0.0.0" {
-		host = "localhost"
+	setup := fmt.Sprintf(
+		"Constellation Overwatch bootstrap\nAdmin: %s\nSetup URL: %s/invite/%s\n",
+		admin.Email,
+		strings.TrimRight(runtime.BaseURL, "/"),
+		plainToken,
+	)
+	if runtime.IsProduction() {
+		if _, err := bootstrapOutput.WriteString(setup); err != nil {
+			return fmt.Errorf("write secure bootstrap output: %w", err)
+		}
+		if err := bootstrapOutput.Sync(); err != nil {
+			return fmt.Errorf("sync secure bootstrap output: %w", err)
+		}
+		if err := bootstrapOutput.Close(); err != nil {
+			return fmt.Errorf("close secure bootstrap output: %w", err)
+		}
 	}
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit bootstrap transaction: %w", err)
 	}
+	removeBootstrapOutput = false
 
 	logger.Infow("Bootstrap admin created",
 		"email", admin.Email, "user_id", admin.UserID)
-	fmt.Printf("\n  ✦ Admin account created for: %s\n", admin.Email)
-	fmt.Printf("  ✦ Complete setup at: http://%s:%s/invite/%s\n\n", host, port, plainToken)
+	if runtime.IsProduction() {
+		logger.Infow("Bootstrap setup material written to secure file",
+			"path", runtime.BootstrapFile)
+	} else {
+		fmt.Printf("\n%s\n", setup)
+	}
+	return nil
+}
+
+func ensureRuntimeDirectories(runtime *runtimeconfig.Runtime) error {
+	if err := os.MkdirAll(runtime.DataDir, 0700); err != nil {
+		return fmt.Errorf("create data directory: %w", err)
+	}
+	if runtime.BackupDir != "" {
+		if err := os.MkdirAll(runtime.BackupDir, 0700); err != nil {
+			return fmt.Errorf("create backup directory: %w", err)
+		}
+	}
+	return nil
 }
 
 func applyFlagOverrides(port, host, natsPort, dataDir string) {

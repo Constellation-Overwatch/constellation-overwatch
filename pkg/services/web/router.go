@@ -7,6 +7,7 @@ import (
 
 	apimiddleware "github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/metrics"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
@@ -29,6 +30,7 @@ func NewRouter(
 	userSvc *services.UserService,
 	inviteSvc *services.InviteService,
 	apiKeySvc *services.APIKeyService,
+	runtime *runtimeconfig.Runtime,
 ) chi.Router {
 	r := chi.NewRouter()
 
@@ -37,8 +39,12 @@ func NewRouter(
 	datastarHandler := handlers.NewDatastarHandler(orgSvc, entitySvc, natsEmbedded.Connection())
 	overwatchHandler := handlers.NewOverwatchHandler(natsEmbedded, orgSvc, entitySvc)
 	videoHandler := handlers.NewVideoHandler(mtxClient, entitySvc)
-	authHandler := handlers.NewAuthHandler(sessionAuth, authSvc, userSvc)
-	inviteHandler := handlers.NewInviteHandler(inviteSvc, userSvc, authSvc, sessionAuth)
+	secureCookies := false
+	if runtime != nil {
+		secureCookies = runtime.SecureCookies
+	}
+	authHandler := handlers.NewAuthHandlerWithSecureCookies(sessionAuth, authSvc, userSvc, secureCookies)
+	inviteHandler := handlers.NewInviteHandlerWithSecureCookies(inviteSvc, userSvc, authSvc, sessionAuth, secureCookies)
 	adminHandler := handlers.NewAdminHandler(userSvc, apiKeySvc, inviteSvc, natsEmbedded)
 	metricsHandler := handlers.NewMetricsHandler()
 
@@ -64,7 +70,7 @@ func NewRouter(
 
 	// ── Auth (rate-limited, no session required) ──────────────────────
 	r.Group(func(r chi.Router) {
-		r.Use(RateLimitByIP(10))
+		r.Use(RateLimitByIPWithConfig(10, runtime))
 		r.HandleFunc("/login", authHandler.HandleLogin)
 		r.Post("/auth/passkey/login/begin", authHandler.HandlePasskeyLoginBegin)
 		r.Post("/auth/passkey/login/finish", authHandler.HandlePasskeyLoginFinish)
