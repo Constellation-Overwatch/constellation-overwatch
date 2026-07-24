@@ -83,6 +83,9 @@ func (s *InviteService) createInvite(orgID, email, role, invitedByUserID, reques
 		`SELECT org_id, role FROM users WHERE user_id = ?`,
 		invitedByUserID,
 	).Scan(&inviterOrgID, &inviterRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, "", fmt.Errorf("%w: invite issuer does not exist", ErrInviteForbidden)
+		}
 		return nil, "", fmt.Errorf("failed to inspect invite issuer: %w", err)
 	}
 	if inviterOrgID != orgID {
@@ -377,6 +380,9 @@ func (s *InviteService) RevokeInvite(inviteID, revokedByUserID string) error {
 		`SELECT org_id, role FROM users WHERE user_id = ?`,
 		revokedByUserID,
 	).Scan(&revokerOrgID, &revokerRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: invite revoker does not exist", ErrInviteForbidden)
+		}
 		return fmt.Errorf("failed to inspect invite revoker: %w", err)
 	}
 	if revokerOrgID != orgID {
@@ -439,6 +445,9 @@ func (s *InviteService) RevokePendingInvitesByIssuer(issuerUserID string) (int, 
 		`SELECT org_id, role FROM users WHERE user_id = ?`,
 		issuerUserID,
 	).Scan(&issuerOrgID, &issuerRole); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("%w: invite issuer does not exist", ErrInviteForbidden)
+		}
 		return 0, fmt.Errorf("failed to inspect pending invite issuer: %w", err)
 	}
 	if issuerRole != "admin" {

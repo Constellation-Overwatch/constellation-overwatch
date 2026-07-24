@@ -105,6 +105,10 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 	invite, plainToken, err := h.inviteSvc.CreateInvite(orgID, req.Email, req.Role, invitedBy)
 	if err != nil {
 		logger.Errorf("Failed to create invite for %s: %v", req.Email, err)
+		if errors.Is(err, services.ErrInviteForbidden) {
+			sendError(w, http.StatusForbidden, "FORBIDDEN", "Invite cannot be created by this user")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create invite")
 		return
 	}

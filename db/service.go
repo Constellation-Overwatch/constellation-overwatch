@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -23,6 +24,7 @@ var schemaFS embed.FS
 type Service struct {
 	DB           *sql.DB
 	DBPath       string
+	migrationMu  sync.RWMutex
 	migrationErr error
 }
 
@@ -126,10 +128,14 @@ func (s *Service) Start(ctx context.Context) error {
 		// sensitive writers verify their required indexes independently and
 		// fail closed until the migration is reconciled. Health also reports
 		// degraded so a dead recovery surface cannot hide behind a green node.
+		s.migrationMu.Lock()
 		s.migrationErr = err
+		s.migrationMu.Unlock()
 		logger.Errorw("Schema migration blocked; affected writes remain disabled", "error", err)
 	} else {
+		s.migrationMu.Lock()
 		s.migrationErr = nil
+		s.migrationMu.Unlock()
 	}
 
 	return nil
@@ -324,8 +330,11 @@ func (s *Service) Health() error {
 	if s.DB == nil {
 		return fmt.Errorf("database connection is nil")
 	}
-	if s.migrationErr != nil {
-		return fmt.Errorf("schema migration incomplete: %w", s.migrationErr)
+	s.migrationMu.RLock()
+	migrationErr := s.migrationErr
+	s.migrationMu.RUnlock()
+	if migrationErr != nil {
+		return fmt.Errorf("schema migration incomplete: %w", migrationErr)
 	}
 	return s.DB.Ping()
 }

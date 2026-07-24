@@ -6,6 +6,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
+
+	apiservices "github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 )
 
 func TestRuntimeConfigProductionValid(t *testing.T) {
@@ -131,6 +136,81 @@ func TestWriteBootstrapFileIsCreateOnce(t *testing.T) {
 	}
 	if err := writeBootstrapFile(path, "attacker@example.net", "https://evil.invalid"); err == nil {
 		t.Fatal("second write unexpectedly overwrote create-once bootstrap file")
+	}
+}
+
+func TestBootstrapAdminSelectsOnlyIncompleteDefaultOrganizationAdmin(t *testing.T) {
+	dbSvc, err := db.New(&db.Config{
+		DBPath:         filepath.Join(t.TempDir(), "bootstrap.db"),
+		MaxOpenConns:   1,
+		MaxIdleConns:   1,
+		AutoInitialize: true,
+	})
+	if err != nil {
+		t.Fatalf("create database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := dbSvc.Close(); err != nil {
+			t.Errorf("close database: %v", err)
+		}
+	})
+
+	if _, err := dbSvc.DB.Exec(
+		`INSERT INTO organizations (org_id, name, org_type)
+		 VALUES ('default', 'Default Organization', 'commercial'),
+		        ('org-b', 'Organization B', 'commercial')`,
+	); err != nil {
+		t.Fatalf("insert organizations: %v", err)
+	}
+
+	userSvc := apiservices.NewUserService(dbSvc.DB)
+	oldCreatedAt := time.Now().Add(-time.Hour).Format(time.RFC3339)
+	for _, user := range []*apiservices.User{
+		{
+			UserID:            "admin-b",
+			OrgID:             "org-b",
+			Username:          "admin-b",
+			Email:             "admin-b@example.test",
+			Role:              "admin",
+			NeedsPasskeySetup: true,
+			CreatedAt:         oldCreatedAt,
+			UpdatedAt:         oldCreatedAt,
+		},
+		{
+			UserID:            "admin-default",
+			OrgID:             "default",
+			Username:          "admin-default",
+			Email:             "admin-default@example.test",
+			Role:              "admin",
+			NeedsPasskeySetup: true,
+		},
+	} {
+		if err := userSvc.CreateUser(user); err != nil {
+			t.Fatalf("create user %s: %v", user.UserID, err)
+		}
+	}
+
+	cfg := runtimeconfig.Development()
+	cfg.BaseURL = "http://localhost:8080"
+	if err := bootstrapAdmin(dbSvc, cfg); err != nil {
+		t.Fatalf("bootstrapAdmin() error = %v", err)
+	}
+
+	var defaultInvites, otherInvites int
+	if err := dbSvc.DB.QueryRow(
+		`SELECT COUNT(*) FROM invites
+		 WHERE org_id = 'default' AND email = 'admin-default@example.test'
+		   AND purpose = 'initial_setup' AND status = 'pending'`,
+	).Scan(&defaultInvites); err != nil {
+		t.Fatalf("count default invites: %v", err)
+	}
+	if err := dbSvc.DB.QueryRow(
+		`SELECT COUNT(*) FROM invites WHERE org_id = 'org-b'`,
+	).Scan(&otherInvites); err != nil {
+		t.Fatalf("count other-org invites: %v", err)
+	}
+	if defaultInvites != 1 || otherInvites != 0 {
+		t.Fatalf("invite counts default/other = %d/%d, want 1/0", defaultInvites, otherInvites)
 	}
 }
 

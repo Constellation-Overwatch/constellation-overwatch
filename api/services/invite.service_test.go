@@ -382,6 +382,39 @@ func TestInviteLifecycleRequiresAdministratorIssuerAndRevoker(t *testing.T) {
 	}
 }
 
+func TestInviteLifecycleTreatsMissingActorsAsForbidden(t *testing.T) {
+	conn := newInviteServiceTestDB(t)
+	svc := NewInviteService(conn)
+
+	if _, _, err := svc.CreateInvite(
+		"org-1", "new@example.com", "viewer", "",
+	); !errors.Is(err, ErrInviteForbidden) {
+		t.Fatalf("CreateInvite() error = %v, want ErrInviteForbidden", err)
+	}
+
+	invite, _, err := svc.CreateInvite("org-1", "new@example.com", "viewer", "admin-1")
+	if err != nil {
+		t.Fatalf("admin create invite: %v", err)
+	}
+	if err := svc.RevokeInvite(invite.InviteID, "missing-admin"); !errors.Is(err, ErrInviteForbidden) {
+		t.Fatalf("RevokeInvite() error = %v, want ErrInviteForbidden", err)
+	}
+	if _, err := svc.RevokePendingInvitesByIssuer("missing-admin"); !errors.Is(err, ErrInviteForbidden) {
+		t.Fatalf("RevokePendingInvitesByIssuer() error = %v, want ErrInviteForbidden", err)
+	}
+
+	var status string
+	if err := conn.QueryRow(
+		`SELECT status FROM invites WHERE invite_id = ?`,
+		invite.InviteID,
+	).Scan(&status); err != nil {
+		t.Fatalf("read invite status: %v", err)
+	}
+	if status != "pending" {
+		t.Fatalf("status = %q after missing-actor operations, want pending", status)
+	}
+}
+
 func TestRevokePendingInvitesByIssuerAuditsEveryLifecycleChange(t *testing.T) {
 	conn := newInviteServiceTestDB(t)
 	if _, err := conn.Exec(

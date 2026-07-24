@@ -463,7 +463,10 @@ func bootstrapAdmin(dbService *db.Service, cfg runtimeconfig.Runtime) error {
 		adminUserID = admin.UserID
 	} else {
 		err := database.QueryRow(
-			`SELECT user_id, email FROM users WHERE role = 'admin' AND needs_passkey_setup = 1 ORDER BY created_at LIMIT 1`,
+			`SELECT user_id, email FROM users
+			 WHERE org_id = ? AND role = 'admin' AND needs_passkey_setup = 1
+			 ORDER BY created_at LIMIT 1`,
+			"default",
 		).Scan(&adminUserID, &adminEmail)
 		if err == sql.ErrNoRows {
 			return nil
