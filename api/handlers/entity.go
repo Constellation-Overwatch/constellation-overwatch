@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -67,7 +68,7 @@ func (h *EntityHandler) Register(api huma.API) {
 		Description:   "Create a new entity within an organization",
 		Tags:          []string{"Entities"},
 		DefaultStatus: http.StatusCreated,
-		Security:      []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+		Security:      []map[string][]string{{"APIKeyAuth": {authz.ScopeEntitiesWrite}}},
 	}, func(ctx context.Context, input *CreateEntityInput) (*EntityOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err
@@ -91,7 +92,7 @@ func (h *EntityHandler) Register(api huma.API) {
 		Summary:     "List entities",
 		Description: "Get all entities for an organization",
 		Tags:        []string{"Entities"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeEntitiesRead}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*EntityListOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err
@@ -115,7 +116,7 @@ func (h *EntityHandler) Register(api huma.API) {
 		Summary:     "Get entity",
 		Description: "Get a single entity by ID",
 		Tags:        []string{"Entities"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"entities:read"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeEntitiesRead}}},
 	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*EntityOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err
@@ -139,7 +140,7 @@ func (h *EntityHandler) Register(api huma.API) {
 		Summary:     "Update entity",
 		Description: "Update an existing entity",
 		Tags:        []string{"Entities"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeEntitiesWrite}}},
 	}, func(ctx context.Context, input *UpdateEntityInput) (*EntityOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err
@@ -167,7 +168,7 @@ func (h *EntityHandler) Register(api huma.API) {
 		Summary:     "Delete entity",
 		Description: "Delete an entity by ID",
 		Tags:        []string{"Entities"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"entities:write"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeEntitiesWrite}}},
 	}, func(ctx context.Context, input *struct{ EntityPathParam }) (*DeletedOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err

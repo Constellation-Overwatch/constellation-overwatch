@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -46,7 +47,7 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Description:   "Create a new organization",
 		Tags:          []string{"Organizations"},
 		DefaultStatus: http.StatusCreated,
-		Security:      []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
+		Security:      []map[string][]string{{"APIKeyAuth": {authz.ScopeOrganizationsWrite}}},
 	}, func(ctx context.Context, input *CreateOrgInput) (*OrgOutput, error) {
 		if err := requireAdminAccess(ctx); err != nil {
 			return nil, err
@@ -67,7 +68,7 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Summary:     "List organizations",
 		Description: "Get all organizations",
 		Tags:        []string{"Organizations"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeOrganizationsRead}}},
 	}, func(ctx context.Context, input *struct{}) (*OrgListOutput, error) {
 		if !hasAllOrgAccess(ctx) {
 			orgID := scopedOrgID(ctx)
@@ -103,7 +104,7 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Summary:     "Get organization",
 		Description: "Get a single organization by ID",
 		Tags:        []string{"Organizations"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:read"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeOrganizationsRead}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*OrgOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err
@@ -127,7 +128,7 @@ func (h *OrganizationHandler) Register(api huma.API) {
 		Summary:     "Delete organization",
 		Description: "Delete an organization by ID",
 		Tags:        []string{"Organizations"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"organizations:write"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {authz.ScopeOrganizationsWrite}}},
 	}, func(ctx context.Context, input *struct{ OrgPathParam }) (*DeletedOutput, error) {
 		if err := requireOrgAccess(ctx, input.OrgID); err != nil {
 			return nil, err

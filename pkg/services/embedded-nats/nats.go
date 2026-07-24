@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
@@ -388,8 +389,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -758,7 +759,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }
@@ -777,22 +778,22 @@ func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
 
 	for _, scope := range scopes {
 		switch scope {
-		case "nats:all":
+		case authz.ScopeNATSAll:
 			return &server.Permissions{
 				Publish:   &server.SubjectPermission{Allow: []string{">"}},
 				Subscribe: &server.SubjectPermission{Allow: []string{">"}},
 			}
-		case "nats:telemetry":
+		case authz.ScopeNATSTelemetry:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
 			subAllow = append(subAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
-		case "nats:commands":
+		case authz.ScopeNATSCommands:
 			subAllow = append(subAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:commands:write":
+		case authz.ScopeNATSCommandsWrite:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:entities":
+		case authz.ScopeNATSEntities:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
 			subAllow = append(subAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
-		case "nats:events":
+		case authz.ScopeNATSEvents:
 			subAllow = append(subAllow, "constellation.events.>")
 		}
 	}

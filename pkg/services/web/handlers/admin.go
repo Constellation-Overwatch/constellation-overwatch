@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -176,6 +178,10 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	created, err := h.apiKeySvc.CreateKey(userID, orgID, req.Name, req.Scopes, nil)
 	if err != nil {
+		if errors.Is(err, authz.ErrInvalidAPIKeyScope) {
+			sendError(w, http.StatusBadRequest, "INVALID_SCOPE", err.Error())
+			return
+		}
 		logger.Errorf("Failed to create API key %q: %v", req.Name, err)
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create API key")
 		return
@@ -183,7 +189,7 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	// If an NKey was generated, register it with the NATS server.
 	if created.NATSPubKey != "" && h.natsEmbedded != nil {
-		perms := embeddednats.BuildNATSPermissions(req.Scopes, orgID)
+		perms := embeddednats.BuildNATSPermissions(created.Scopes, orgID)
 		if perms != nil {
 			if err := h.natsEmbedded.AddNKeyUser(created.NATSPubKey, perms); err != nil {
 				logger.Errorf("Failed to register NKey with NATS: %v", err)

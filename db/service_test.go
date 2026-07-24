@@ -167,3 +167,74 @@ func TestMigrateSchemaExternalCopy(t *testing.T) {
 		t.Fatalf("credential unique index flag = %d, want 1", unique)
 	}
 }
+
+func TestMigrateAPIKeyScopeAliasesIsExplicitAndIdempotent(t *testing.T) {
+	conn, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "api-keys.db"))
+	if err != nil {
+		t.Fatalf("open API key database: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close API key database: %v", err)
+		}
+	})
+	conn.SetMaxOpenConns(1)
+
+	if _, err := conn.Exec(`CREATE TABLE api_keys (
+		key_id TEXT PRIMARY KEY,
+		scopes TEXT NOT NULL DEFAULT ''
+	)`); err != nil {
+		t.Fatalf("create API key table: %v", err)
+	}
+	for _, row := range []struct {
+		keyID  string
+		scopes string
+	}{
+		{keyID: "legacy", scopes: "orgs:read,orgs:write,entities:read"},
+		{keyID: "unknown", scopes: "organizations:read,nats:telemetry:write"},
+		{keyID: "empty", scopes: "[]"},
+	} {
+		if _, err := conn.Exec(
+			`INSERT INTO api_keys (key_id, scopes) VALUES (?, ?)`,
+			row.keyID,
+			row.scopes,
+		); err != nil {
+			t.Fatalf("insert %s: %v", row.keyID, err)
+		}
+	}
+
+	svc := &Service{DB: conn}
+	if err := svc.migrateAPIKeyScopeAliases(); err != nil {
+		t.Fatalf("first scope migration: %v", err)
+	}
+	if err := svc.migrateAPIKeyScopeAliases(); err != nil {
+		t.Fatalf("idempotent scope migration: %v", err)
+	}
+
+	want := map[string]string{
+		"legacy":  "organizations:read,organizations:write,entities:read",
+		"unknown": "organizations:read,nats:telemetry:write",
+		"empty":   "",
+	}
+	rows, err := conn.Query(`SELECT key_id, scopes FROM api_keys`)
+	if err != nil {
+		t.Fatalf("query migrated scopes: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var keyID, scopes string
+		if err := rows.Scan(&keyID, &scopes); err != nil {
+			t.Fatalf("scan migrated scopes: %v", err)
+		}
+		if scopes != want[keyID] {
+			t.Fatalf("%s scopes = %q, want %q", keyID, scopes, want[keyID])
+		}
+		delete(want, keyID)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate migrated scopes: %v", err)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing migrated rows: %v", want)
+	}
+}

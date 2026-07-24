@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 )
@@ -66,51 +67,51 @@ templ AdminPage() {
 						<div class="scope-selector" id="scope-selector">
 							<label class="scope-label">API:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="orgs:read" checked/>
-								<span class="scope-chip">orgs:read</span>
+								<input type="checkbox" value={ authz.ScopeOrganizationsRead } checked/>
+								<span class="scope-chip">{ authz.ScopeOrganizationsRead }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="orgs:write"/>
-								<span class="scope-chip">orgs:write</span>
+								<input type="checkbox" value={ authz.ScopeOrganizationsWrite }/>
+								<span class="scope-chip">{ authz.ScopeOrganizationsWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="entities:read" checked/>
-								<span class="scope-chip">entities:read</span>
+								<input type="checkbox" value={ authz.ScopeEntitiesRead } checked/>
+								<span class="scope-chip">{ authz.ScopeEntitiesRead }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="entities:write"/>
-								<span class="scope-chip">entities:write</span>
+								<input type="checkbox" value={ authz.ScopeEntitiesWrite }/>
+								<span class="scope-chip">{ authz.ScopeEntitiesWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="admin"/>
-								<span class="scope-chip">admin</span>
+								<input type="checkbox" value={ authz.ScopeAdmin }/>
+								<span class="scope-chip">{ authz.ScopeAdmin }</span>
 							</label>
 						</div>
 						<div class="scope-selector" id="nats-scope-selector">
 							<label class="scope-label">NATS:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:telemetry"/>
-								<span class="scope-chip">nats:telemetry</span>
+								<input type="checkbox" value={ authz.ScopeNATSTelemetry }/>
+								<span class="scope-chip">{ authz.ScopeNATSTelemetry }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:commands"/>
-								<span class="scope-chip">nats:commands</span>
+								<input type="checkbox" value={ authz.ScopeNATSCommands }/>
+								<span class="scope-chip">{ authz.ScopeNATSCommands }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:commands:write"/>
-								<span class="scope-chip">nats:commands:write</span>
+								<input type="checkbox" value={ authz.ScopeNATSCommandsWrite }/>
+								<span class="scope-chip">{ authz.ScopeNATSCommandsWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:entities"/>
-								<span class="scope-chip">nats:entities</span>
+								<input type="checkbox" value={ authz.ScopeNATSEntities }/>
+								<span class="scope-chip">{ authz.ScopeNATSEntities }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:events"/>
-								<span class="scope-chip">nats:events</span>
+								<input type="checkbox" value={ authz.ScopeNATSEvents }/>
+								<span class="scope-chip">{ authz.ScopeNATSEvents }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:all"/>
-								<span class="scope-chip">nats:all</span>
+								<input type="checkbox" value={ authz.ScopeNATSAll }/>
+								<span class="scope-chip">{ authz.ScopeNATSAll }</span>
 							</label>
 						</div>
 					</div>

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/authz"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 )
 
@@ -110,7 +111,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Parse scopes from comma-separated string.
-	scopes := parseScopes(scopesJSON)
+	scopes, _ := authz.MigrateStoredAPIKeyScopes(authz.ParseStoredAPIKeyScopes(scopesJSON))
 
 	// Update last_used inline with a short timeout so it doesn't block the
 	// request for long, but avoids unbounded goroutine-per-request growth.
@@ -195,24 +196,10 @@ func sha256Hex(raw string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// parseScopes splits a comma-separated scope string into a slice.
-func parseScopes(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var scopes []string
-	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			scopes = append(scopes, trimmed)
-		}
-	}
-	return scopes
-}
-
 // HasScope checks whether the given scope (or "admin") is present in the list.
 func HasScope(scopes []string, required string) bool {
 	for _, s := range scopes {
-		if s == required || s == "admin" {
+		if s == required || s == authz.ScopeAdmin {
 			return true
 		}
 	}
