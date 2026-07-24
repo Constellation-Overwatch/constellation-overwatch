@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 // APIKeyMiddleware handles API key authentication and scope enforcement.
@@ -33,7 +34,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := extractAPIKey(r)
 		if raw == "" {
-			writeJSONError(w, http.StatusUnauthorized,"Missing API key or Authorization header")
+			writeJSONError(w, http.StatusUnauthorized, "Missing API key or Authorization header")
 			return
 		}
 
@@ -44,7 +45,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// No recognized prefix — reject.
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 	})
 }
 
@@ -80,7 +81,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 		return
 	}
 	if err != nil {
@@ -90,20 +91,20 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if revoked == 1 {
-		writeJSONError(w, http.StatusUnauthorized,"API key has been revoked")
+		writeJSONError(w, http.StatusUnauthorized, "API key has been revoked")
 		return
 	}
 
 	if expiresAt.Valid {
 		exp, parseErr := time.Parse(time.RFC3339, expiresAt.String)
 		if parseErr == nil && time.Now().After(exp) {
-			writeJSONError(w, http.StatusUnauthorized,"API key has expired")
+			writeJSONError(w, http.StatusUnauthorized, "API key has expired")
 			return
 		}
 	}
 
 	// Parse scopes from comma-separated string.
-	scopes := parseScopes(scopesJSON)
+	scopes, _ := shared.MigrateStoredAPIKeyScopes(shared.ParseStoredAPIKeyScopes(scopesJSON))
 
 	// Update last_used inline with a short timeout so it doesn't block the
 	// request for long, but avoids unbounded goroutine-per-request growth.
@@ -185,24 +186,10 @@ func sha256Hex(raw string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// parseScopes splits a comma-separated scope string into a slice.
-func parseScopes(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var scopes []string
-	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			scopes = append(scopes, trimmed)
-		}
-	}
-	return scopes
-}
-
 // HasScope checks whether the given scope (or "admin") is present in the list.
 func HasScope(scopes []string, required string) bool {
 	for _, s := range scopes {
-		if s == required || s == "admin" {
+		if s == required || s == shared.ScopeAdmin {
 			return true
 		}
 	}

@@ -220,7 +220,7 @@ CREATE TABLE api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   key_prefix TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT '',
-  scopes TEXT NOT NULL DEFAULT '[]',
+  scopes TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL DEFAULT 'operator',
   nats_pub_key TEXT,
   expires_at TEXT,

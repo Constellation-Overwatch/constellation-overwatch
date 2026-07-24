@@ -368,10 +368,108 @@ func (s *Service) MigrateSchema() error {
 		}
 	}
 
+	if err := s.migrateAPIKeyScopeAliases(); err != nil {
+		return err
+	}
+
 	if err := s.ensureUniqueWebAuthnCredentialIDs(); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// migrateAPIKeyScopeAliases replaces only aliases with an explicit canonical
+// mapping. Unknown values are retained so migration cannot guess at a
+// permission and accidentally widen an existing credential.
+func (s *Service) migrateAPIKeyScopeAliases() error {
+	if !s.tableExists("api_keys") {
+		return nil
+	}
+
+	rows, err := s.DB.Query(`SELECT key_id, scopes FROM api_keys`)
+	if err != nil {
+		return fmt.Errorf("failed to inspect API key scopes: %w", err)
+	}
+
+	type storedKeyScopes struct {
+		keyID   string
+		current string
+		next    string
+		unknown int
+	}
+	var records []storedKeyScopes
+	for rows.Next() {
+		var record storedKeyScopes
+		if err := rows.Scan(&record.keyID, &record.current); err != nil {
+			scanErr := fmt.Errorf("failed to scan API key scopes: %w", err)
+			if closeErr := rows.Close(); closeErr != nil {
+				return errors.Join(scanErr, fmt.Errorf("failed to close API key scope rows: %w", closeErr))
+			}
+			return scanErr
+		}
+		normalized, unknown := shared.MigrateStoredAPIKeyScopes(
+			shared.ParseStoredAPIKeyScopes(record.current),
+		)
+		record.next = shared.FormatStoredAPIKeyScopes(normalized)
+		record.unknown = len(unknown)
+		records = append(records, record)
+	}
+	iterationErr := rows.Err()
+	closeErr := rows.Close()
+	var readErr error
+	if iterationErr != nil {
+		readErr = fmt.Errorf("failed to iterate API key scopes: %w", iterationErr)
+	}
+	if closeErr != nil {
+		readErr = errors.Join(readErr, fmt.Errorf("failed to close API key scope rows: %w", closeErr))
+	}
+	if readErr != nil {
+		return readErr
+	}
+
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin API key scope migration: %w", err)
+	}
+
+	var migrated, unknown int
+	for _, record := range records {
+		unknown += record.unknown
+		if record.current == record.next {
+			continue
+		}
+		if _, err := tx.Exec(
+			`UPDATE api_keys SET scopes = ? WHERE key_id = ?`,
+			record.next,
+			record.keyID,
+		); err != nil {
+			migrateErr := fmt.Errorf("failed to migrate API key scopes: %w", err)
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return errors.Join(migrateErr, fmt.Errorf("failed to roll back API key scope migration: %w", rollbackErr))
+			}
+			return migrateErr
+		}
+		migrated++
+	}
+	if err := tx.Commit(); err != nil {
+		commitErr := fmt.Errorf("failed to commit API key scope migration: %w", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			return errors.Join(commitErr, fmt.Errorf("failed to roll back API key scope migration: %w", rollbackErr))
+		}
+		return commitErr
+	}
+
+	if migrated > 0 {
+		logger.Infow("Migrated deprecated API key scope aliases", "keys", migrated)
+	}
+	if unknown > 0 {
+		logger.Warnw(
+			"Stored API keys contain unknown scopes; values were preserved without granting new permissions",
+			"scope_entries",
+			unknown,
+		)
+	}
 	return nil
 }
 
@@ -423,6 +521,15 @@ func (s *Service) columnExists(table, column string) bool {
 		return false
 	}
 	return count > 0
+}
+
+func (s *Service) tableExists(table string) bool {
+	var count int
+	err := s.DB.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		table,
+	).Scan(&count)
+	return err == nil && count > 0
 }
 
 // GetSchemaVersion returns the current schema version

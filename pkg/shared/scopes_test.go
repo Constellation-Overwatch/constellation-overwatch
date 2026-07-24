@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -36,6 +37,35 @@ func TestNormalizeAPIKeyScopes(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("NormalizeAPIKeyScopes() = %#v, want %#v", got, tt.want)
 			}
+			if tt.wantErr && !errors.Is(err, ErrInvalidAPIKeyScope) {
+				t.Fatalf("NormalizeAPIKeyScopes() error = %v, want ErrInvalidAPIKeyScope", err)
+			}
 		})
+	}
+}
+
+func TestMigrateStoredAPIKeyScopesChangesOnlyExplicitAliases(t *testing.T) {
+	got, unknown := MigrateStoredAPIKeyScopes([]string{
+		"orgs:read",
+		ScopeEntitiesRead,
+		"nats:unknown",
+		ScopeOrganizationsRead,
+	})
+	want := []string{
+		ScopeOrganizationsRead,
+		ScopeEntitiesRead,
+		"nats:unknown",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("migrated scopes = %v, want %v", got, want)
+	}
+	if !reflect.DeepEqual(unknown, []string{"nats:unknown"}) {
+		t.Fatalf("unknown scopes = %v", unknown)
+	}
+}
+
+func TestParseStoredAPIKeyScopesHistoricalEmptyDefault(t *testing.T) {
+	if got := ParseStoredAPIKeyScopes("[]"); got != nil {
+		t.Fatalf("parsed historical empty default = %v, want nil", got)
 	}
 }

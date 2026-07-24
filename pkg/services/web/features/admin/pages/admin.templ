@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
 )
@@ -66,43 +67,43 @@ templ AdminPage() {
 						<div class="scope-selector" id="scope-selector">
 							<label class="scope-label">API:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="organizations:read" checked/>
-								<span class="scope-chip">organizations:read</span>
+								<input type="checkbox" value={ shared.ScopeOrganizationsRead } checked/>
+								<span class="scope-chip">{ shared.ScopeOrganizationsRead }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="organizations:write"/>
-								<span class="scope-chip">organizations:write</span>
+								<input type="checkbox" value={ shared.ScopeOrganizationsWrite }/>
+								<span class="scope-chip">{ shared.ScopeOrganizationsWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="entities:read" checked/>
-								<span class="scope-chip">entities:read</span>
+								<input type="checkbox" value={ shared.ScopeEntitiesRead } checked/>
+								<span class="scope-chip">{ shared.ScopeEntitiesRead }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="entities:write"/>
-								<span class="scope-chip">entities:write</span>
+								<input type="checkbox" value={ shared.ScopeEntitiesWrite }/>
+								<span class="scope-chip">{ shared.ScopeEntitiesWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="admin"/>
-								<span class="scope-chip">admin</span>
+								<input type="checkbox" value={ shared.ScopeAdmin }/>
+								<span class="scope-chip">{ shared.ScopeAdmin }</span>
 							</label>
 						</div>
 						<div class="scope-selector" id="nats-scope-selector">
 							<label class="scope-label">NATS:</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:telemetry:write"/>
-								<span class="scope-chip">nats:telemetry:write</span>
+								<input type="checkbox" value={ shared.ScopeNATSTelemetryWrite }/>
+								<span class="scope-chip">{ shared.ScopeNATSTelemetryWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:commands:read"/>
-								<span class="scope-chip">nats:commands:read</span>
+								<input type="checkbox" value={ shared.ScopeNATSCommandsRead }/>
+								<span class="scope-chip">{ shared.ScopeNATSCommandsRead }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:commands:write"/>
-								<span class="scope-chip">nats:commands:write</span>
+								<input type="checkbox" value={ shared.ScopeNATSCommandsWrite }/>
+								<span class="scope-chip">{ shared.ScopeNATSCommandsWrite }</span>
 							</label>
 							<label class="scope-toggle">
-								<input type="checkbox" value="nats:events:write"/>
-								<span class="scope-chip">nats:events:write</span>
+								<input type="checkbox" value={ shared.ScopeNATSEventsWrite }/>
+								<span class="scope-chip">{ shared.ScopeNATSEventsWrite }</span>
 							</label>
 						</div>
 					</div>

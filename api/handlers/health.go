@@ -33,7 +33,7 @@ func (h *HealthHandler) Register(api huma.API) {
 		Summary:     "Health check",
 		Description: "Get the health status of the API and its dependencies",
 		Tags:        []string{"System"},
-		Security:    []map[string][]string{{"APIKeyAuth": {"admin"}}},
+		Security:    []map[string][]string{{"APIKeyAuth": {shared.ScopeAdmin}}},
 	}, func(ctx context.Context, input *struct{}) (*HealthOutput, error) {
 		health := shared.HealthStatus{
 			Status:    "healthy",

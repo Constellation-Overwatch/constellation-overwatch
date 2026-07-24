@@ -9,6 +9,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -68,7 +69,7 @@ func NewRouterWithOrigins(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOr
 	// SSE monitor — raw chi (long-lived, not REST)
 	r.With(
 		apiKeyAuth.Authenticate,
-		middleware.RequireScope("admin"),
+		middleware.RequireScope(shared.ScopeAdmin),
 		middleware.LimitConcurrentFor(4, time.Hour),
 	).Get("/v1/sys/monitor/sse", monitorHandler.SSE)
 

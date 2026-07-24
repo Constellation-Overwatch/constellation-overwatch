@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -51,11 +50,12 @@ func NewAPIKeyService(db *sql.DB) *APIKeyService {
 // CreatedKey is returned from CreateKey and contains the plaintext key (shown
 // once to the user), the database key ID, visible prefix, and NATS credentials.
 type CreatedKey struct {
-	APIKey     string `json:"api_key"`
-	KeyID      string `json:"key_id"`
-	Prefix     string `json:"prefix"`
-	NATSSeed   string `json:"nats_seed,omitempty"`
-	NATSPubKey string `json:"nats_pub_key,omitempty"`
+	APIKey     string   `json:"api_key"`
+	KeyID      string   `json:"key_id"`
+	Prefix     string   `json:"prefix"`
+	Scopes     []string `json:"scopes"`
+	NATSSeed   string   `json:"nats_seed,omitempty"`
+	NATSPubKey string   `json:"nats_pub_key,omitempty"`
 }
 
 // StoredKey represents a non-sensitive view of an API key record.
@@ -93,7 +93,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 
 	keyHash := hashAPIKey(plaintext)
 
-	scopesStr := strings.Join(scopes, ",")
+	scopesStr := shared.FormatStoredAPIKeyScopes(scopes)
 
 	var expiresAtStr sql.NullString
 	if expiresAt != nil {
@@ -135,6 +135,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 		APIKey: plaintext,
 		KeyID:  keyID,
 		Prefix: prefix,
+		Scopes: scopes,
 	}
 	if natsSeed != "" {
 		result.NATSSeed = natsSeed
@@ -196,7 +197,7 @@ func (s *APIKeyService) ListKeys(orgID string) ([]StoredKey, error) {
 			return nil, fmt.Errorf("failed to scan API key row: %w", err)
 		}
 
-		k.Scopes = parseCSV(scopesStr)
+		k.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 		k.Revoked = revokedInt == 1
 		keys = append(keys, k)
 	}
@@ -232,7 +233,7 @@ func (s *APIKeyService) ListNKeyData() ([]NKeyData, error) {
 		if err := rows.Scan(&r.NATSPubKey, &scopesStr, &r.OrgID); err != nil {
 			return nil, fmt.Errorf("failed to scan NKey record: %w", err)
 		}
-		r.Scopes = parseCSV(scopesStr)
+		r.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 		records = append(records, r)
 	}
 	return records, nil
@@ -269,7 +270,7 @@ func (s *APIKeyService) ValidateKey(keyHash string) (*StoredKey, error) {
 		}
 	}
 
-	k.Scopes = parseCSV(scopesStr)
+	k.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 	k.Revoked = false
 
 	return &k, nil
@@ -286,20 +287,6 @@ func (s *APIKeyService) UpdateLastUsed(keyID string) error {
 	}
 
 	return nil
-}
-
-// parseCSV splits a comma-separated string into a trimmed string slice.
-func parseCSV(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var result []string
-	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }
 
 // hasNATSScopes returns true if any scope starts with "nats:".
