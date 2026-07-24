@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -20,10 +19,9 @@ import (
 
 var apiKeyHMACWarnOnce sync.Once
 
-// hashAPIKey computes the HMAC-SHA256 hex digest when OVERWATCH_KEY_HASH_SECRET
-// is set, falling back to plain SHA-256 for development.
-func hashAPIKey(raw string) string {
-	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+// hashAPIKey computes the HMAC-SHA256 hex digest when a validated secret is
+// supplied, falling back to plain SHA-256 only for development compatibility.
+func hashAPIKey(raw, secret string) string {
 	if secret == "" {
 		apiKeyHMACWarnOnce.Do(func() {
 			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash for API keys")
@@ -39,12 +37,21 @@ func hashAPIKey(raw string) string {
 // APIKeyService manages the lifecycle of API keys including creation,
 // revocation, validation, and usage tracking.
 type APIKeyService struct {
-	db *sql.DB
+	db            *sql.DB
+	keyHashSecret string
 }
 
-// NewAPIKeyService creates a new APIKeyService with the given database connection.
+// NewAPIKeyService creates a development-compatible APIKeyService. Production
+// startup must use NewAPIKeyServiceWithSecret with its validated snapshot.
 func NewAPIKeyService(db *sql.DB) *APIKeyService {
-	return &APIKeyService{db: db}
+	return NewAPIKeyServiceWithSecret(db, "")
+}
+
+// NewAPIKeyServiceWithSecret binds API-key hashing to the immutable startup
+// snapshot so creation cannot diverge from authentication if the environment
+// changes after validation.
+func NewAPIKeyServiceWithSecret(db *sql.DB, keyHashSecret string) *APIKeyService {
+	return &APIKeyService{db: db, keyHashSecret: keyHashSecret}
 }
 
 // CreatedKey is returned from CreateKey and contains the plaintext key (shown
@@ -91,7 +98,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 	plaintext := "c4_live_" + hex.EncodeToString(raw)
 	prefix := plaintext[:16] // "c4_live_" plus first 8 hex chars
 
-	keyHash := hashAPIKey(plaintext)
+	keyHash := hashAPIKey(plaintext, s.keyHashSecret)
 
 	scopesStr := shared.FormatStoredAPIKeyScopes(scopes)
 

@@ -19,6 +19,7 @@ type Runtime struct {
 	RPID                  string
 	AllowedOrigins        []string
 	TrustedProxies        []netip.Prefix
+	KeyHashSecret         string
 	DataDir               string
 	BackupDir             string
 	AdminEmail            string

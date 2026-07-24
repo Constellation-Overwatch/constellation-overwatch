@@ -67,7 +67,7 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 	authSvc := services.NewAuthService(database, wa)
 	userSvc := services.NewUserService(database)
 	inviteSvc := services.NewInviteService(database)
-	apiKeySvc := services.NewAPIKeyService(database)
+	apiKeySvc := services.NewAPIKeyServiceWithSecret(database, runtimeCfg.KeyHashSecret)
 
 	// Restore NATS NKey users from API keys on startup.
 	if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {

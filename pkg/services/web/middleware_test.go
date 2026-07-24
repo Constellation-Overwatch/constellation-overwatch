@@ -109,10 +109,24 @@ func TestClientIPHonorsForwardingHeadersFromConfiguredProxy(t *testing.T) {
 	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/login", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("X-Forwarded-For", "198.51.100.20, 127.0.0.1")
+	req.Header.Set("X-Forwarded-For", "198.51.100.20, 203.0.113.30")
 	trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
+	if got := clientIPFromTrustedProxies(req, trusted); got != "203.0.113.30" {
+		t.Fatalf("clientIPFromTrustedProxies() = %q, want nearest untrusted hop", got)
+	}
+}
+
+func TestClientIPSkipsTrustedProxyChainFromRight(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "198.51.100.20, 10.1.2.3")
+	trusted := []netip.Prefix{
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("10.0.0.0/8"),
+	}
 	if got := clientIPFromTrustedProxies(req, trusted); got != "198.51.100.20" {
-		t.Fatalf("clientIPFromTrustedProxies() = %q, want forwarded client", got)
+		t.Fatalf("clientIPFromTrustedProxies() = %q, want first untrusted hop from right", got)
 	}
 }
 
@@ -121,6 +135,17 @@ func TestClientIPRejectsInvalidForwardingHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/login", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-For", "spoofed")
+	trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
+	if got := clientIPFromTrustedProxies(req, trusted); got != "127.0.0.1" {
+		t.Fatalf("clientIPFromTrustedProxies() = %q, want direct peer fallback", got)
+	}
+}
+
+func TestClientIPRejectsMalformedForwardingChain(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/login", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "198.51.100.20, not-an-ip")
 	trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
 	if got := clientIPFromTrustedProxies(req, trusted); got != "127.0.0.1" {
 		t.Fatalf("clientIPFromTrustedProxies() = %q, want direct peer fallback", got)

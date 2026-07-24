@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,12 +19,20 @@ import (
 
 // APIKeyMiddleware handles API key authentication and scope enforcement.
 type APIKeyMiddleware struct {
-	db *sql.DB
+	db            *sql.DB
+	keyHashSecret string
 }
 
-// NewAPIKeyMiddleware creates a new APIKeyMiddleware with the given database connection.
+// NewAPIKeyMiddleware creates a development-compatible middleware. Production
+// startup must use NewAPIKeyMiddlewareWithSecret with its validated snapshot.
 func NewAPIKeyMiddleware(db *sql.DB) *APIKeyMiddleware {
-	return &APIKeyMiddleware{db: db}
+	return NewAPIKeyMiddlewareWithSecret(db, "")
+}
+
+// NewAPIKeyMiddlewareWithSecret binds authentication to the same immutable
+// secret snapshot used when API keys are created.
+func NewAPIKeyMiddlewareWithSecret(db *sql.DB, keyHashSecret string) *APIKeyMiddleware {
+	return &APIKeyMiddleware{db: db, keyHashSecret: keyHashSecret}
 }
 
 // Authenticate is HTTP middleware that validates API keys from the X-API-Key header
@@ -52,7 +59,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 // authenticateDBKey hashes the raw key, looks it up in the api_keys table,
 // and injects identity claims into the request context.
 func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Request, next http.Handler, raw string) {
-	hash := hashKey(raw)
+	hash := hashKey(raw, m.keyHashSecret)
 
 	var keyID, userID, orgID, role, scopesJSON string
 	var revoked int
@@ -64,7 +71,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	).Scan(&keyID, &userID, &orgID, &role, &scopesJSON, &revoked, &expiresAt)
 
 	// If HMAC lookup failed and HMAC is enabled, try legacy SHA-256 fallback.
-	if errors.Is(err, sql.ErrNoRows) && os.Getenv("OVERWATCH_KEY_HASH_SECRET") != "" {
+	if errors.Is(err, sql.ErrNoRows) && m.keyHashSecret != "" {
 		legacyHash := sha256Hex(raw)
 		err = m.db.QueryRow(
 			`SELECT key_id, user_id, org_id, role, scopes, revoked, expires_at
@@ -164,11 +171,9 @@ func extractAPIKey(r *http.Request) string {
 
 var hmacWarnOnce sync.Once
 
-// hashKey computes the HMAC-SHA256 hex digest of a raw API key when
-// OVERWATCH_KEY_HASH_SECRET is set, falling back to plain SHA-256 for
-// development.
-func hashKey(raw string) string {
-	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+// hashKey computes the HMAC-SHA256 hex digest of a raw API key when a validated
+// secret is supplied, falling back to plain SHA-256 for development.
+func hashKey(raw, secret string) string {
 	if secret == "" {
 		hmacWarnOnce.Do(func() {
 			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash")

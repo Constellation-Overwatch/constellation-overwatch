@@ -203,17 +203,35 @@ func clientIPFromTrustedProxies(r *http.Request, trustedProxies []netip.Prefix) 
 	}
 
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := strings.IndexByte(xff, ','); i > 0 {
-			xff = xff[:i]
+		hops := strings.Split(xff, ",")
+		for i := len(hops) - 1; i >= 0; i-- {
+			candidate := strings.TrimSpace(hops[i])
+			if !validIPAddress(candidate) {
+				return remoteIP
+			}
+			if !addressInPrefixes(candidate, trustedProxies) {
+				return candidate
+			}
 		}
-		if candidate := strings.TrimSpace(xff); validIPAddress(candidate) {
-			return candidate
-		}
+		return remoteIP
 	}
 	if candidate := strings.TrimSpace(r.Header.Get("X-Real-Ip")); validIPAddress(candidate) {
 		return candidate
 	}
 	return remoteIP
+}
+
+func addressInPrefixes(address string, prefixes []netip.Prefix) bool {
+	parsed, err := netip.ParseAddr(address)
+	if err != nil {
+		return false
+	}
+	for _, prefix := range prefixes {
+		if prefix.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }
 
 func remoteAddressIP(remoteAddr string) string {

@@ -22,8 +22,15 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 }
 
 // NewRouterWithOrigins creates the API router with an explicit exact-origin
-// allowlist. Production startup passes its validated deployment profile here.
+// allowlist and no API-key HMAC secret. Production startup uses
+// NewRouterWithRuntimeSecurity with its validated deployment profile.
 func NewRouterWithOrigins(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOrigins []string) http.Handler {
+	return NewRouterWithRuntimeSecurity(db, nats, allowedOrigins, "")
+}
+
+// NewRouterWithRuntimeSecurity creates the API router from immutable,
+// validated origin and API-key hashing configuration.
+func NewRouterWithRuntimeSecurity(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOrigins []string, keyHashSecret string) http.Handler {
 	r := chi.NewRouter()
 
 	// Services
@@ -37,7 +44,7 @@ func NewRouterWithOrigins(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOr
 	monitorHandler := handlers.NewMonitorHandler()
 
 	// API key authentication middleware
-	apiKeyAuth := middleware.NewAPIKeyMiddleware(db)
+	apiKeyAuth := middleware.NewAPIKeyMiddlewareWithSecret(db, keyHashSecret)
 
 	// Global middleware
 	r.Use(chimw.Recoverer)

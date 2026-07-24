@@ -23,6 +23,9 @@ func TestRuntimeConfigProductionValid(t *testing.T) {
 	if len(cfg.TrustedProxies) != 1 || cfg.TrustedProxies[0].String() != "127.0.0.0/8" {
 		t.Fatalf("trusted proxies = %#v", cfg.TrustedProxies)
 	}
+	if cfg.KeyHashSecret != env["OVERWATCH_KEY_HASH_SECRET"] {
+		t.Fatal("validated API-key hash secret was not captured in runtime snapshot")
+	}
 }
 
 func TestRuntimeConfigProductionAllowsLoopbackNATSBehindTLSProxy(t *testing.T) {

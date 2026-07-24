@@ -247,7 +247,12 @@ func cmdStart(args []string) {
 
 	// 5. Initialize API Router
 	logger.Info("Initializing API router...")
-	apiHandler := api.NewRouterWithOrigins(dbService.GetDB(), natsService, runtimeCfg.AllowedOrigins)
+	apiHandler := api.NewRouterWithRuntimeSecurity(
+		dbService.GetDB(),
+		natsService,
+		runtimeCfg.AllowedOrigins,
+		runtimeCfg.KeyHashSecret,
+	)
 
 	// 6. Initialize Web Server
 	logger.Info("Initializing web server...")

@@ -36,6 +36,7 @@ func runtimeConfigFromEnv(lookup envLookup) (runtimeconfig.Runtime, error) {
 	cfg.BaseURL = strings.TrimRight(envValue(lookup, "OVERWATCH_BASE_URL", cfg.BaseURL), "/")
 	cfg.RPID = envValue(lookup, "OVERWATCH_RPID", cfg.RPID)
 	cfg.AllowedOrigins = splitCSV(envValue(lookup, "OVERWATCH_ALLOWED_ORIGINS", envValue(lookup, "ALLOWED_ORIGINS", strings.Join(cfg.AllowedOrigins, ","))))
+	cfg.KeyHashSecret = envValue(lookup, "OVERWATCH_KEY_HASH_SECRET", "")
 	cfg.DataDir = envValue(lookup, "OVERWATCH_DATA_DIR", cfg.DataDir)
 	cfg.BackupDir = envValue(lookup, "OVERWATCH_BACKUP_DIR", "")
 	cfg.AdminEmail = envValue(lookup, "OVERWATCH_ADMIN_EMAIL", "admin@localhost")

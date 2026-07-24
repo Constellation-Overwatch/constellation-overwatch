@@ -66,12 +66,11 @@ func adminAPIKeyRequest(t *testing.T, body string) *http.Request {
 
 func TestUIIssuedLeastPrivilegeOrganizationKeyPassesOrganizationAPI(t *testing.T) {
 	const keyHashSecret = "test-only-api-key-secret-at-least-32-bytes"
-	t.Setenv("OVERWATCH_KEY_HASH_SECRET", keyHashSecret)
 
 	dbSvc := newAPIKeyConformanceDB(t)
 	handler := NewAdminHandler(
 		nil,
-		services.NewAPIKeyService(dbSvc.DB),
+		services.NewAPIKeyServiceWithSecret(dbSvc.DB, keyHashSecret),
 		nil,
 		nil,
 	)
@@ -103,7 +102,7 @@ func TestUIIssuedLeastPrivilegeOrganizationKeyPassesOrganizationAPI(t *testing.T
 	apiReq := httptest.NewRequest(http.MethodGet, "/v1/organizations", nil)
 	apiReq.Header.Set("X-API-Key", createResponse.Data.APIKey)
 	apiRec := httptest.NewRecorder()
-	apiserver.NewRouter(dbSvc.DB, nil).ServeHTTP(apiRec, apiReq)
+	apiserver.NewRouterWithRuntimeSecurity(dbSvc.DB, nil, nil, keyHashSecret).ServeHTTP(apiRec, apiReq)
 	if apiRec.Code != http.StatusOK {
 		t.Fatalf("organization API status=%d body=%s", apiRec.Code, apiRec.Body.String())
 	}
@@ -135,11 +134,11 @@ func TestUIIssuedLeastPrivilegeOrganizationKeyPassesOrganizationAPI(t *testing.T
 }
 
 func TestAdminAPIKeyCreationRejectsDeprecatedAndUnknownScopes(t *testing.T) {
-	t.Setenv("OVERWATCH_KEY_HASH_SECRET", "test-only-api-key-secret-at-least-32-bytes")
+	const keyHashSecret = "test-only-api-key-secret-at-least-32-bytes"
 	dbSvc := newAPIKeyConformanceDB(t)
 	handler := NewAdminHandler(
 		nil,
-		services.NewAPIKeyService(dbSvc.DB),
+		services.NewAPIKeyServiceWithSecret(dbSvc.DB, keyHashSecret),
 		nil,
 		nil,
 	)
