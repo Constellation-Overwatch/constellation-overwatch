@@ -65,9 +65,51 @@ test "$(cat "$data_dir/overwatch/jetstream/stream.dat")" = "pre-restore-jetstrea
 test -f "$service_state"
 find "$test_root" -maxdepth 1 -type d -name 'state.restore-failed-*' | grep -q .
 
+real_tar=$(command -v tar)
+tar_started="$test_root/tar-started"
+cat >"$fake_bin/tar" <<'EOF'
+#!/bin/sh
+set -eu
+case "${FAKE_TAR_PAUSE_EXTRACT:-0}:$*" in
+	1:*"-xzf"*)
+		: >"$FAKE_TAR_STARTED"
+		sleep 2
+		exit 0
+		;;
+esac
+exec "$REAL_TAR" "$@"
+EOF
+chmod 755 "$fake_bin/tar"
+printf 'pre-interrupt-state\n' >"$data_dir/db/constellation.db"
+printf 'pre-interrupt-jetstream\n' >"$data_dir/overwatch/jetstream/stream.dat"
 PATH="$fake_bin:$PATH" \
 	FAKE_SYSTEMCTL_STATE="$service_state" \
 	FAKE_CURL_STATUS=0 \
+	FAKE_TAR_PAUSE_EXTRACT=1 \
+	FAKE_TAR_STARTED="$tar_started" \
+	REAL_TAR="$real_tar" \
+	"$script_dir/restore-linux.sh" "$archive" "$data_dir" test.service --confirm-restore &
+restore_pid=$!
+attempt=1
+while [ ! -f "$tar_started" ] && [ "$attempt" -le 5 ]; do
+	sleep 1
+	attempt=$((attempt + 1))
+done
+test -f "$tar_started"
+kill -TERM "$restore_pid"
+if wait "$restore_pid"; then
+	echo "interrupted restore unexpectedly succeeded" >&2
+	exit 1
+fi
+test "$(cat "$data_dir/db/constellation.db")" = "pre-interrupt-state"
+test "$(cat "$data_dir/overwatch/jetstream/stream.dat")" = "pre-interrupt-jetstream"
+test -f "$service_state"
+
+PATH="$fake_bin:$PATH" \
+	FAKE_SYSTEMCTL_STATE="$service_state" \
+	FAKE_CURL_STATUS=0 \
+	FAKE_TAR_PAUSE_EXTRACT=0 \
+	REAL_TAR="$real_tar" \
 	"$script_dir/restore-linux.sh" "$archive" "$data_dir" test.service --confirm-restore
 
 test "$(cat "$data_dir/db/constellation.db")" = "sqlite-state"

@@ -60,6 +60,45 @@ if ! tar -tzf "$archive" | awk -v root="$archive_root" '
 fi
 
 was_active=0
+restore_started=0
+stamp=$(date -u +%Y%m%dT%H%M%SZ)-$$
+rollback_dir="$data_dir.restore-rollback-$stamp"
+failed_dir="$data_dir.restore-failed-$stamp"
+if [ -e "$rollback_dir" ]; then
+	echo "rollback directory already exists: $rollback_dir" >&2
+	exit 1
+fi
+if [ -e "$failed_dir" ]; then
+	echo "failed-restore directory already exists: $failed_dir" >&2
+	exit 1
+fi
+
+restore_failed() {
+	trap - HUP INT TERM
+	if [ "$restore_started" -eq 1 ] || [ "$was_active" -eq 1 ]; then
+		if command -v systemctl >/dev/null 2>&1; then
+			systemctl --user stop "$service_name" >/dev/null 2>&1 || true
+		fi
+	fi
+	if [ -e "$rollback_dir" ]; then
+		if [ -e "$data_dir" ]; then
+			mv "$data_dir" "$failed_dir"
+		fi
+		mv "$rollback_dir" "$data_dir"
+	elif [ "$restore_started" -eq 1 ] && [ -e "$data_dir" ]; then
+		mv "$data_dir" "$failed_dir"
+	fi
+	if [ "$was_active" -eq 1 ]; then
+		systemctl --user start "$service_name" || true
+	fi
+}
+restore_interrupted() {
+	echo "restore interrupted; reactivating prior data" >&2
+	restore_failed
+	exit 130
+}
+trap restore_interrupted HUP INT TERM
+
 if command -v systemctl >/dev/null 2>&1; then
 	load_state=$(systemctl --user show "$service_name" --property=LoadState --value 2>/dev/null || true)
 	if [ "$load_state" != "loaded" ] && [ "$offline_maintenance" -ne 1 ]; then
@@ -81,42 +120,10 @@ if command -v systemctl >/dev/null 2>&1 &&
 	fi
 fi
 
-stamp=$(date -u +%Y%m%dT%H%M%SZ)-$$
-rollback_dir="$data_dir.restore-rollback-$stamp"
-failed_dir="$data_dir.restore-failed-$stamp"
-if [ -e "$rollback_dir" ]; then
-	echo "rollback directory already exists: $rollback_dir" >&2
-	exit 1
-fi
-if [ -e "$failed_dir" ]; then
-	echo "failed-restore directory already exists: $failed_dir" >&2
-	exit 1
-fi
+restore_started=1
 if [ -e "$data_dir" ]; then
 	mv "$data_dir" "$rollback_dir"
 fi
-
-restore_failed() {
-	trap - HUP INT TERM
-	if command -v systemctl >/dev/null 2>&1; then
-		systemctl --user stop "$service_name" >/dev/null 2>&1 || true
-	fi
-	if [ -e "$data_dir" ]; then
-		mv "$data_dir" "$failed_dir"
-	fi
-	if [ -e "$rollback_dir" ]; then
-		mv "$rollback_dir" "$data_dir"
-	fi
-	if [ "$was_active" -eq 1 ]; then
-		systemctl --user start "$service_name" || true
-	fi
-}
-restore_interrupted() {
-	echo "restore interrupted; reactivating prior data" >&2
-	restore_failed
-	exit 130
-}
-trap restore_interrupted HUP INT TERM
 
 if ! tar -C "$(dirname "$data_dir")" -xzf "$archive"; then
 	restore_failed
@@ -153,4 +160,8 @@ if [ "$was_active" -eq 1 ]; then
 fi
 
 trap - HUP INT TERM
-echo "Restore succeeded. Prior data retained at: $rollback_dir"
+if [ -e "$rollback_dir" ]; then
+	echo "Restore succeeded. Prior data retained at: $rollback_dir"
+else
+	echo "Restore succeeded. No prior data directory existed."
+fi

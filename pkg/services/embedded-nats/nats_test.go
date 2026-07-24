@@ -223,9 +223,17 @@ func TestInternalUserAndEdgeNKeyAuthenticationCoexist(t *testing.T) {
 func assertNATSPermissionDenied(t *testing.T, nc *nats.Conn, errors <-chan error, subject string) {
 	t.Helper()
 	if err := nc.Publish(subject, []byte("denied")); err != nil {
-		return
+		if strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+			return
+		}
+		t.Fatalf("publish %q returned unexpected error: %v", subject, err)
 	}
-	_ = nc.FlushTimeout(time.Second)
+	if err := nc.FlushTimeout(time.Second); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+			return
+		}
+		t.Fatalf("flush publish %q returned unexpected error: %v", subject, err)
+	}
 	select {
 	case err := <-errors:
 		if !strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
@@ -246,7 +254,12 @@ func assertNATSSubscribePermissionDenied(t *testing.T, nc *nats.Conn, errors <-c
 		t.Fatalf("subscribe %q returned unexpected error: %v", subject, err)
 	}
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
-	_ = nc.FlushTimeout(time.Second)
+	if err := nc.FlushTimeout(time.Second); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
+			return
+		}
+		t.Fatalf("flush subscribe %q returned unexpected error: %v", subject, err)
+	}
 	select {
 	case err := <-errors:
 		if !strings.Contains(strings.ToLower(err.Error()), "permissions violation") {
