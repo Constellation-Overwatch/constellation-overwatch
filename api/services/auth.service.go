@@ -12,8 +12,20 @@ import (
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
+
+// ErrCredentialExists is returned when a WebAuthn credential ID is already
+// owned by an account. Callers must not reveal which account owns it.
+var ErrCredentialExists = errors.New("webauthn credential already exists")
+
+// ErrCredentialStoreNotReady prevents registration when the database cannot
+// prove global credential ID uniqueness. Existing credential login remains
+// available so a blocked migration does not crash-loop or lock out the system.
+var ErrCredentialStoreNotReady = errors.New("webauthn credential store is not ready for registration")
 
 // WebAuthnUser implements the webauthn.User interface for passkey authentication.
 type WebAuthnUser struct {
@@ -102,6 +114,23 @@ func NewAuthService(db *sql.DB, wa *webauthn.WebAuthn) *AuthService {
 // WebAuthn returns the underlying webauthn.WebAuthn instance for use by handlers.
 func (s *AuthService) WebAuthn() *webauthn.WebAuthn {
 	return s.wa
+}
+
+// BeginRegistration starts a registration ceremony while excluding every
+// credential already registered to the user. Authenticators should reject an
+// attempt to recreate an existing credential; the database unique index is the
+// final race-safe backstop.
+func (s *AuthService) BeginRegistration(user *WebAuthnUser) (*protocol.CredentialCreation, *webauthn.SessionData, error) {
+	if err := s.requireUniqueCredentialIDs(); err != nil {
+		return nil, nil, err
+	}
+
+	return s.wa.BeginRegistration(
+		user,
+		webauthn.WithExclusions(
+			webauthn.Credentials(user.WebAuthnCredentials()).CredentialDescriptors(),
+		),
+	)
 }
 
 // GetUserByID retrieves a WebAuthnUser by the primary user_id, loading all
@@ -275,6 +304,10 @@ func (s *AuthService) GetCredentialCount(userID string) (int, error) {
 
 // AddCredential inserts a new WebAuthn credential for the given user.
 func (s *AuthService) AddCredential(userID string, cred *webauthn.Credential) error {
+	if err := s.requireUniqueCredentialIDs(); err != nil {
+		return err
+	}
+
 	credJSON, err := json.Marshal(cred)
 	if err != nil {
 		return fmt.Errorf("failed to marshal credential: %w", err)
@@ -286,9 +319,32 @@ func (s *AuthService) AddCredential(userID string, cred *webauthn.Credential) er
 		userID, fmt.Sprintf("%x", cred.ID), string(credJSON), time.Now().Format(time.RFC3339),
 	)
 	if err != nil {
+		var sqliteErr *sqlite.Error
+		if errors.As(err, &sqliteErr) &&
+			(sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE ||
+				sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY) {
+			return fmt.Errorf("%w: %v", ErrCredentialExists, err)
+		}
 		return fmt.Errorf("failed to insert webauthn credential: %w", err)
 	}
 
+	return nil
+}
+
+func (s *AuthService) requireUniqueCredentialIDs() error {
+	var ready int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM pragma_index_list('webauthn_credentials')
+		WHERE name = 'idx_webauthn_creds_credential_id_unique'
+		  AND [unique] = 1`,
+	).Scan(&ready)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCredentialStoreNotReady, err)
+	}
+	if ready != 1 {
+		return ErrCredentialStoreNotReady
+	}
 	return nil
 }
 
@@ -362,11 +418,17 @@ func (s *AuthService) SaveWebAuthnSessionRandom(ceremony, userRef string, data *
 // and key. Expired sessions are treated as not found. Returns session data and
 // the user_ref stored during SaveWebAuthnSessionRandom.
 func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.SessionData, string, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to begin WebAuthn session transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	var dataJSON string
 	var expiresAt string
 	var userRef sql.NullString
 
-	err := s.db.QueryRow(
+	err = tx.QueryRow(
 		`SELECT session_data, user_ref, expires_at FROM webauthn_sessions
 		 WHERE ceremony = ? AND session_key = ?`,
 		ceremony, key,
@@ -381,17 +443,33 @@ func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.Sessio
 
 	// Check expiry BEFORE deleting to avoid timing oracle.
 	exp, parseErr := time.Parse(time.RFC3339, expiresAt)
-	if parseErr == nil && time.Now().After(exp) {
-		// Clean up expired row.
-		s.db.Exec(`DELETE FROM webauthn_sessions WHERE ceremony = ? AND session_key = ?`, ceremony, key)
+	if parseErr != nil || time.Now().After(exp) {
+		if _, err := tx.Exec(
+			`DELETE FROM webauthn_sessions WHERE ceremony = ? AND session_key = ?`,
+			ceremony, key,
+		); err != nil {
+			return nil, "", fmt.Errorf("failed to delete invalid WebAuthn session: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, "", fmt.Errorf("failed to commit invalid WebAuthn session cleanup: %w", err)
+		}
 		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrNotFound) // same error as not-found
 	}
 
-	// Delete the session (single use).
-	s.db.Exec(
+	result, err := tx.Exec(
 		`DELETE FROM webauthn_sessions WHERE ceremony = ? AND session_key = ?`,
 		ceremony, key,
 	)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to consume WebAuthn session: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to inspect WebAuthn session consumption: %w", err)
+	}
+	if rows != 1 {
+		return nil, "", fmt.Errorf("webauthn session: %w", shared.ErrNotFound)
+	}
 
 	var data webauthn.SessionData
 	if err := json.Unmarshal([]byte(dataJSON), &data); err != nil {
@@ -401,6 +479,10 @@ func (s *AuthService) GetWebAuthnSession(ceremony, key string) (*webauthn.Sessio
 	ref := ""
 	if userRef.Valid {
 		ref = userRef.String
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, "", fmt.Errorf("failed to commit WebAuthn session consumption: %w", err)
 	}
 
 	return &data, ref, nil

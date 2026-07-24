@@ -320,7 +320,7 @@ CREATE INDEX idx_audit_timestamp ON audit_log(timestamp DESC);
 
 -- WebAuthn Credentials
 CREATE INDEX idx_webauthn_creds_user ON webauthn_credentials(user_id);
-CREATE INDEX idx_webauthn_creds_cred_id ON webauthn_credentials(credential_id);
+CREATE UNIQUE INDEX idx_webauthn_creds_credential_id_unique ON webauthn_credentials(credential_id);
 
 -- WebAuthn Sessions (for cleanup)
 CREATE INDEX idx_webauthn_sessions_expires ON webauthn_sessions(expires_at);

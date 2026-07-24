@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	newUserInviteDuration  = 7 * 24 * time.Hour
+	recoveryInviteDuration = 15 * time.Minute
+)
+
 // InviteService manages organization invitation tokens.
 type InviteService struct {
 	db *sql.DB
@@ -42,7 +47,26 @@ type Invite struct {
 func (s *InviteService) CreateInvite(orgID, email, role, invitedByUserID string) (*Invite, string, error) {
 	inviteID := uuid.New().String()
 	now := time.Now()
-	expiresAt := now.Add(7 * 24 * time.Hour) // 7 day expiry
+	expiresAt := now.Add(newUserInviteDuration)
+
+	// An invite for an existing account is a privileged recovery enrollment,
+	// not a role-changing invitation. Keep its lifetime short and preserve the
+	// account's existing organization and role.
+	var existingOrgID, existingRole string
+	err := s.db.QueryRow(
+		`SELECT org_id, role FROM users WHERE email = ?`,
+		email,
+	).Scan(&existingOrgID, &existingRole)
+	switch {
+	case err == nil:
+		if existingOrgID != orgID {
+			return nil, "", fmt.Errorf("existing user belongs to another organization")
+		}
+		role = existingRole
+		expiresAt = now.Add(recoveryInviteDuration)
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, "", fmt.Errorf("failed to inspect invite identity: %w", err)
+	}
 
 	// Generate 32 random bytes for the invite token.
 	raw := make([]byte, 32)
@@ -54,7 +78,7 @@ func (s *InviteService) CreateInvite(orgID, email, role, invitedByUserID string)
 	h := sha256.Sum256([]byte(plainToken))
 	tokenHash := hex.EncodeToString(h[:])
 
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		`INSERT INTO invites (invite_id, org_id, email, role, invited_by_user_id, token_hash, status, expires_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
 		inviteID, orgID, email, role, invitedByUserID, tokenHash,
@@ -101,9 +125,12 @@ func (s *InviteService) GetInviteByTokenHash(hash string) (*Invite, error) {
 
 // AcceptInvite marks an invite as accepted.
 func (s *InviteService) AcceptInvite(inviteID string) error {
+	now := time.Now().Format(time.RFC3339)
 	result, err := s.db.Exec(
-		`UPDATE invites SET status = 'accepted', updated_at = ? WHERE invite_id = ?`,
-		time.Now().Format(time.RFC3339), inviteID,
+		`UPDATE invites
+		 SET status = 'accepted', updated_at = ?
+		 WHERE invite_id = ? AND status = 'pending' AND expires_at > ?`,
+		now, inviteID, now,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to accept invite: %w", err)
@@ -114,7 +141,7 @@ func (s *InviteService) AcceptInvite(inviteID string) error {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("invite %s: %w", inviteID, shared.ErrNotFound)
+		return fmt.Errorf("pending invite %s: %w", inviteID, shared.ErrNotFound)
 	}
 
 	return nil

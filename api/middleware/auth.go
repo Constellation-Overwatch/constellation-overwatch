@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	SessionCookieName = "overwatch_session"
-	sessionDuration   = 24 * time.Hour
+	SessionCookieName           = "overwatch_session"
+	sessionDuration             = 24 * time.Hour
+	passkeySetupSessionDuration = 10 * time.Minute
 )
 
 // session is the in-process representation of a session row.
@@ -53,11 +54,13 @@ func (s *SessionAuth) CreateSessionForUser(userID, role string, needsPasskey boo
 	}
 	tokenStr := hex.EncodeToString(token)
 
-	expiresAt := time.Now().Add(sessionDuration).Format(time.RFC3339)
+	duration := sessionDuration
 	needsSetup := 0
 	if needsPasskey {
 		needsSetup = 1
+		duration = passkeySetupSessionDuration
 	}
+	expiresAt := time.Now().Add(duration).Format(time.RFC3339)
 
 	_, err := s.db.Exec(
 		`INSERT INTO sessions (session_token, user_id, role, org_id, needs_passkey_setup, expires_at)
@@ -83,15 +86,23 @@ func (s *SessionAuth) ClearPasskeySetup(token string) {
 
 // IsPasskeySetup returns true if the session has the needsPasskeySetup flag set.
 func (s *SessionAuth) IsPasskeySetup(token string) bool {
+	required, err := s.PasskeySetupRequired(token)
+	return err == nil && required
+}
+
+// PasskeySetupRequired returns the setup scope for a live session. Callers
+// making authorization decisions use the error-returning form so a database
+// failure cannot silently widen an enrollment-only session.
+func (s *SessionAuth) PasskeySetupRequired(token string) (bool, error) {
 	var flag int
 	err := s.db.QueryRow(
 		`SELECT needs_passkey_setup FROM sessions WHERE session_token = ? AND expires_at > ?`,
 		token, time.Now().Format(time.RFC3339),
 	).Scan(&flag)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to read passkey setup session: %w", err)
 	}
-	return flag == 1
+	return flag == 1, nil
 }
 
 // ValidateSession checks if the session token is valid and not expired.
@@ -108,8 +119,11 @@ func (s *SessionAuth) ValidateSession(token string) bool {
 }
 
 // DestroySession removes a session.
-func (s *SessionAuth) DestroySession(token string) {
-	_, _ = s.db.Exec(`DELETE FROM sessions WHERE session_token = ?`, token)
+func (s *SessionAuth) DestroySession(token string) error {
+	if _, err := s.db.Exec(`DELETE FROM sessions WHERE session_token = ?`, token); err != nil {
+		return fmt.Errorf("failed to destroy session: %w", err)
+	}
+	return nil
 }
 
 // cleanupLoop periodically removes expired sessions.

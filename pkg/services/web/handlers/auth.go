@@ -4,6 +4,7 @@ import (
 	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
@@ -163,8 +164,13 @@ func (h *AuthHandler) HandlePasskeyRegisterBegin(w http.ResponseWriter, r *http.
 		return
 	}
 
-	options, sessionData, err := h.authSvc.WebAuthn().BeginRegistration(user)
+	options, sessionData, err := h.authSvc.BeginRegistration(user)
 	if err != nil {
+		if errors.Is(err, services.ErrCredentialStoreNotReady) {
+			logger.Errorw("Passkey registration disabled until credential migration is reconciled", "error", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Passkey registration is temporarily unavailable"})
+			return
+		}
 		logger.Errorw("Failed to begin passkey registration", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to start registration"})
 		return
@@ -196,21 +202,16 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Race condition guard: if this is a first-time setup user, reject if they already have a credential
-	count, err := h.authSvc.GetCredentialCount(userID)
-	if err != nil {
-		logger.Errorw("Failed to check credential count", "error", err, "user_id", userID)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+	sessionCookie, err := r.Cookie(middleware.SessionCookieName)
+	if err != nil || sessionCookie.Value == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Not authenticated"})
 		return
 	}
-	if count > 0 {
-		// Check if this is a first-time setup (needsPasskeySetup flag in session)
-		if cookie, cErr := r.Cookie(middleware.SessionCookieName); cErr == nil {
-			if h.sessionAuth.IsPasskeySetup(cookie.Value) {
-				writeJSON(w, http.StatusConflict, map[string]string{"error": "A passkey has already been registered"})
-				return
-			}
-		}
+	enrollmentSession, err := h.sessionAuth.PasskeySetupRequired(sessionCookie.Value)
+	if err != nil {
+		logger.Errorw("Failed to inspect passkey enrollment session", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+		return
 	}
 
 	// Retrieve the session key from the cookie
@@ -227,9 +228,14 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 		return
 	}
 
-	sessionData, _, err := h.authSvc.GetWebAuthnSession("register", waCookie.Value)
+	sessionData, ceremonyUserID, err := h.authSvc.GetWebAuthnSession("register", waCookie.Value)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session expired, please try again"})
+		return
+	}
+	if ceremonyUserID != userID {
+		logger.Warnw("Rejected passkey registration with mismatched ceremony user", "user_id", userID)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Registration failed"})
 		return
 	}
 
@@ -241,20 +247,38 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 	}
 
 	if err := h.authSvc.AddCredential(userID, credential); err != nil {
+		if errors.Is(err, services.ErrCredentialExists) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Passkey is already registered"})
+			return
+		}
+		if errors.Is(err, services.ErrCredentialStoreNotReady) {
+			logger.Errorw("Passkey registration disabled until credential migration is reconciled", "error", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Passkey registration is temporarily unavailable"})
+			return
+		}
 		logger.Errorw("Failed to store credential", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to store credential"})
 		return
 	}
 
-	// Mark passkey setup complete in DB and clear session flag
+	// Mark the account setup complete. Enrollment sessions remain scoped and
+	// are destroyed below; they never become full authenticated sessions.
 	if err := h.userSvc.MarkPasskeySetupComplete(userID); err != nil {
 		logger.Warnw("Failed to mark passkey setup complete", "error", err, "user_id", userID)
 	}
-	if cookie, err := r.Cookie(middleware.SessionCookieName); err == nil {
-		h.sessionAuth.ClearPasskeySetup(cookie.Value)
+
+	redirect := "/overwatch"
+	if enrollmentSession {
+		if err := h.sessionAuth.DestroySession(sessionCookie.Value); err != nil {
+			logger.Errorw("Failed to destroy completed passkey enrollment session", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Passkey registered; please log out before continuing"})
+			return
+		}
+		middleware.ClearSessionCookie(w)
+		redirect = "/login"
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "redirect": redirect})
 }
 
 // HandleLogout handles the logout request

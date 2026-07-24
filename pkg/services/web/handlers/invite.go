@@ -141,7 +141,8 @@ func (h *InviteHandler) HandleFinalizeInvite(w http.ResponseWriter, r *http.Requ
 	// Mark the invite as accepted.
 	if err := h.inviteSvc.AcceptInvite(invite.InviteID); err != nil {
 		logger.Errorf("Failed to mark invite %s as accepted: %v", invite.InviteID, err)
-		// The user was already created; log the error but still return success.
+		sendError(w, http.StatusGone, "GONE", "This invite has already been used or expired")
+		return
 	}
 
 	// Create a session for the new user so they can register their passkey.
