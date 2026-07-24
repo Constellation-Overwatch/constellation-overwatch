@@ -272,7 +272,7 @@ func (h *AuthHandler) HandlePasskeyRegisterFinish(w http.ResponseWriter, r *http
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Passkey registered; please log out before continuing"})
 			return
 		}
-		middleware.ClearSessionCookie(w)
+		h.sessionAuth.ClearSessionCookie(w)
 		redirect = "/login"
 	}
 
