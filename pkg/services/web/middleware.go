@@ -114,14 +114,39 @@ func RateLimitByIP(requestsPerMinute int) func(http.Handler) http.Handler {
 // RequireAdmin is middleware that checks for the admin role in the request context.
 // Must be used after session authentication middleware.
 func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, _ := r.Context().Value(middleware.ContextKeyUserRole).(string)
-		if role != "admin" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return RequireRole("admin")(next)
+}
+
+// RequireOperator permits entity and fleet mutations by operators and admins.
+// Must be used after session authentication middleware.
+func RequireOperator(next http.Handler) http.Handler {
+	return RequireRole("operator", "admin")(next)
+}
+
+// RequireViewer permits authenticated browser reads for every supported role.
+// Must be used after session authentication middleware.
+func RequireViewer(next http.Handler) http.Handler {
+	return RequireRole("viewer", "operator", "admin")(next)
+}
+
+// RequireRole checks that the session role is one of the explicitly allowed
+// roles. Unknown or missing roles fail closed.
+func RequireRole(allowed ...string) func(http.Handler) http.Handler {
+	allowedRoles := make(map[string]struct{}, len(allowed))
+	for _, role := range allowed {
+		allowedRoles[role] = struct{}{}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role, _ := r.Context().Value(middleware.ContextKeyUserRole).(string)
+			if _, ok := allowedRoles[role]; !ok {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // clientIP extracts the client IP from the request, checking proxy headers.

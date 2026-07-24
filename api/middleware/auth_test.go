@@ -2,12 +2,36 @@ package middleware
 
 import (
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+func TestRequireSessionRedirectsAnonymousRequests(t *testing.T) {
+	auth := &SessionAuth{}
+	called := false
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	})
+	req := httptest.NewRequest(http.MethodGet, "/organizations", nil)
+	rec := httptest.NewRecorder()
+
+	auth.RequireSession(next).ServeHTTP(rec, req)
+
+	if called {
+		t.Fatal("anonymous request reached the protected handler")
+	}
+	if rec.Code != http.StatusFound {
+		t.Fatalf("anonymous status=%d, want 302", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "/login" {
+		t.Fatalf("anonymous redirect=%q, want /login", location)
+	}
+}
 
 func TestPasskeySetupSessionIsScopedAndShortLived(t *testing.T) {
 	conn, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "sessions.db"))

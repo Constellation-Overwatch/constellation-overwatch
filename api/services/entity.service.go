@@ -186,6 +186,27 @@ func (s *EntityService) GetEntity(orgID, entityID string) (*ontology.Entity, err
 	return entity, nil
 }
 
+// GetEntityByID returns an entity by its globally unique ID. Authorization
+// must be established by the caller before using this all-organization lookup.
+func (s *EntityService) GetEntityByID(entityID string) (*ontology.Entity, error) {
+	row := s.db.QueryRow(
+		`SELECT entity_id, org_id, name, entity_type, status, priority, is_live,
+		        latitude, longitude, altitude, heading, velocity,
+		        components, tags, metadata, video_config, created_at, updated_at
+		 FROM entities WHERE entity_id = ?`,
+		entityID,
+	)
+
+	entity, err := s.scanEntity(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("entity: %w", shared.ErrNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return entity, nil
+}
+
 func (s *EntityService) UpdateEntity(orgID, entityID string, updates map[string]interface{}) (*ontology.Entity, error) {
 	if len(updates) == 0 {
 		return nil, shared.ErrNoUpdates

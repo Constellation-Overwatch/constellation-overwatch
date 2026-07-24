@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
@@ -39,41 +40,45 @@ templ OrganizationsTable(organizations []ontology.Organization, selectedOrgID st
 			for _, org := range organizations {
 				@OrganizationRow(org, selectedOrgID)
 			}
-			<tr id="new-org-form-row" class="form-row-inline">
-				<form id="new-org-form"
-					data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
-					data-indicator:submitting>
-					<td>
-						<input type="text"
-							name="name"
-							class="inline-form-input"
-							placeholder="Organization Name *"
-							required
-							maxlength="255"/>
-					</td>
-					<td>
-						<select name="org_type" class="inline-form-input" required>
-							<option value="">Select Type *</option>
-							<option value="military">Military</option>
-							<option value="civilian">Civilian</option>
-							<option value="commercial">Commercial</option>
-							<option value="ngo">NGO</option>
-						</select>
-					</td>
-					<td>
-						<input type="text"
-							name="description"
-							class="inline-form-input"
-							placeholder="Description (optional)"
-							maxlength="500"/>
-					</td>
-					<td>
-						<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
-							Add
-						</button>
-					</td>
-				</form>
-			</tr>
+			if middleware.UserRoleFromContext(ctx) == "admin" {
+				<tr id="new-org-form-row" class="form-row-inline">
+					<form id="new-org-form"
+						data-on:submit__prevent="@post('/api/organizations', {contentType: 'form'})"
+						data-indicator:submitting>
+						<td>
+							<input type="text"
+								name="name"
+								class="inline-form-input"
+								placeholder="Organization Name *"
+								required
+								maxlength="255"/>
+						</td>
+						<td>
+							<select name="org_type" class="inline-form-input" required>
+								<option value="">Select Type *</option>
+								<option value="military">Military</option>
+								<option value="civilian">Civilian</option>
+								<option value="commercial">Commercial</option>
+								<option value="ngo">NGO</option>
+							</select>
+						</td>
+						<td>
+							<input type="text"
+								name="description"
+								class="inline-form-input"
+								placeholder="Description (optional)"
+								maxlength="500"/>
+						</td>
+						<td>
+							<button type="submit" class="action-btn primary small" data-attr:disabled="$submitting">
+								Add
+							</button>
+						</td>
+					</form>
+				</tr>
+			} else {
+				<tr id="new-org-form-row" hidden></tr>
+			}
 		</tbody>
 	</table>
 }
@@ -84,20 +89,24 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 		<td class="org-type">{ org.OrgType }</td>
 		<td><span class="status-badge active">ACTIVE</span></td>
 		<td style="display: flex; gap: 4px;">
-			<button class="action-btn small"
-				data-on:click={ "@get('/organizations/edit/" + org.OrgID + "')" }>
-				Edit
-			</button>
+			if middleware.UserRoleFromContext(ctx) == "admin" {
+				<button class="action-btn small"
+					data-on:click={ "@get('/organizations/edit/" + org.OrgID + "')" }>
+					Edit
+				</button>
+			}
 			<button class="action-btn small"
 				data-org-id={ org.OrgID }
 				onclick="(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)"
 				title="Copy org_id for fleet device registration">
 				Copy
 			</button>
-			<button class="action-btn small danger"
-				data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID) }>
-				Delete
-			</button>
+			if middleware.UserRoleFromContext(ctx) == "admin" {
+				<button class="action-btn small danger"
+					data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID) }>
+					Delete
+				</button>
+			}
 		</td>
 	</tr>
 }

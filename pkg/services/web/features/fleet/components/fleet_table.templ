@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
@@ -24,8 +25,9 @@ templ FleetTable(organizations []ontology.Organization, entities []ontology.Enti
 			for _, entity := range entities {
 				@FleetRow(organizations, entity)
 			}
-			<tr id="new-fleet-form-row" class="form-row-inline">
-				<form id="new-fleet-form"
+			if role := middleware.UserRoleFromContext(ctx); role == "operator" || role == "admin" {
+				<tr id="new-fleet-form-row" class="form-row-inline">
+					<form id="new-fleet-form"
 					data-on:submit__prevent="@post('/api/fleet', {contentType: 'form'})"
 					data-indicator:submitting>
 					<td>
@@ -95,8 +97,11 @@ templ FleetTable(organizations []ontology.Organization, entities []ontology.Enti
 							Add
 						</button>
 					</td>
-				</form>
-			</tr>
+					</form>
+				</tr>
+			} else {
+				<tr id="new-fleet-form-row" hidden></tr>
+			}
 		</tbody>
 	</table>
 }
@@ -130,20 +135,24 @@ templ FleetRow(organizations []ontology.Organization, entity ontology.Entity) {
 		</td>
 		<td class="timestamp">{ entity.UpdatedAt.Format("15:04:05") }</td>
 		<td style="display: flex; gap: 4px;">
-			<button class="action-btn small"
-				data-on:click={ fmt.Sprintf("@get('/fleet/edit/%s')", entity.EntityID) }>
-				Edit
-			</button>
+			if role := middleware.UserRoleFromContext(ctx); role == "operator" || role == "admin" {
+				<button class="action-btn small"
+					data-on:click={ fmt.Sprintf("@get('/fleet/edit/%s')", entity.EntityID) }>
+					Edit
+				</button>
+			}
 			<button class="action-btn small"
 				data-entity-id={ entity.EntityID }
 				onclick="(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.entityId)"
 				title="Copy entity_id for API integration">
 				Copy
 			</button>
-			<button class="action-btn small danger"
-				data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this entity?')) @delete('/api/fleet/%s?org_id=%s')", entity.EntityID, entity.OrgID) }>
-				Delete
-			</button>
+			if role := middleware.UserRoleFromContext(ctx); role == "operator" || role == "admin" {
+				<button class="action-btn small danger"
+					data-on:click={ fmt.Sprintf("if (confirm('Are you sure you want to delete this entity?')) @delete('/api/fleet/%s?org_id=%s')", entity.EntityID, entity.OrgID) }>
+					Delete
+				</button>
+			}
 		</td>
 	</tr>
 }

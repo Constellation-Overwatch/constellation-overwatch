@@ -31,24 +31,24 @@ func NewPageHandler(orgSvc *services.OrganizationService, entitySvc *services.En
 }
 
 func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
 
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Load all entities by default
-	var entities []ontology.Entity
-	if orgID != "" {
-		// If org_id is provided, filter by that org
-		entities, err = h.entitySvc.ListEntities(orgID)
-	} else {
-		// Otherwise load all entities
-		entities, err = h.entitySvc.ListAllEntities()
-	}
+	orgID, entities, err := entitiesForSession(access, r.URL.Query().Get("org_id"), h.entitySvc)
 	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -73,7 +73,17 @@ func (h *PageHandler) HandleEntitiesPage(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
+	orgID, err := access.authorizeOrg(r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
 	entityID := r.URL.Query().Get("entity_id")
 
 	var entity *ontology.Entity
@@ -81,11 +91,16 @@ func (h *PageHandler) HandleEntityForm(w http.ResponseWriter, r *http.Request) {
 
 	if entityID != "" {
 		isEdit = true
-		e, err := h.entitySvc.GetEntity(orgID, entityID)
+		resolvedOrgID, e, err := entityForSession(access, orgID, entityID, h.entitySvc)
 		if err != nil {
+			if isSessionAccessError(err) {
+				writeSessionAccessError(w, err)
+				return
+			}
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
+		orgID = resolvedOrgID
 		entity = e
 	}
 
@@ -170,15 +185,19 @@ func (h *PageHandler) HandleOverwatchPage(w http.ResponseWriter, r *http.Request
 }
 
 func (h *PageHandler) HandleFleetPage(w http.ResponseWriter, r *http.Request) {
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch all entities
-	entities, err := h.entitySvc.ListAllEntities()
+	_, entities, err := entitiesForSession(access, "", h.entitySvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

@@ -37,7 +37,12 @@ func NewDatastarHandler(orgSvc *services.OrganizationService, entitySvc *service
 // Organization Handlers
 
 func (h *DatastarHandler) HandleListOrganizations(w http.ResponseWriter, r *http.Request) {
-	orgs, err := h.orgSvc.ListOrganizations()
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -64,6 +69,11 @@ func (h *DatastarHandler) HandleListOrganizations(w http.ResponseWriter, r *http
 }
 
 func (h *DatastarHandler) HandleCreateOrganization(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	// Log request details for debugging
 	logger.Infof("[API] POST /api/organizations - Content-Type: %s, Accept: %s",
 		r.Header.Get("Content-Type"), r.Header.Get("Accept"))
@@ -113,6 +123,11 @@ func (h *DatastarHandler) HandleCreateOrganization(w http.ResponseWriter, r *htt
 }
 
 func (h *DatastarHandler) HandleUpdateOrganization(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	var orgID string
 	updates := make(map[string]interface{})
 
@@ -196,6 +211,11 @@ func (h *DatastarHandler) HandleUpdateOrganization(w http.ResponseWriter, r *htt
 }
 
 func (h *DatastarHandler) HandleUpdateOrganizationByID(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	orgID := chi.URLParam(r, "org_id")
 	if orgID == "" {
 		http.Error(w, "Organization ID required", http.StatusBadRequest)
@@ -253,6 +273,11 @@ func (h *DatastarHandler) HandleUpdateOrganizationByID(w http.ResponseWriter, r 
 }
 
 func (h *DatastarHandler) HandleDeleteOrganization(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	orgID := chi.URLParam(r, "org_id")
 	if orgID == "" {
 		http.Error(w, "Organization ID required", http.StatusBadRequest)
@@ -286,6 +311,11 @@ func (h *DatastarHandler) HandleDeleteOrganization(w http.ResponseWriter, r *htt
 }
 
 func (h *DatastarHandler) HandleOrganizationEdit(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	orgID := chi.URLParam(r, "org_id")
 	if orgID == "" {
 		http.Error(w, "Organization ID required", http.StatusBadRequest)
@@ -311,6 +341,11 @@ func (h *DatastarHandler) HandleOrganizationEdit(w http.ResponseWriter, r *http.
 }
 
 func (h *DatastarHandler) HandleOrganizationCancel(w http.ResponseWriter, r *http.Request) {
+	if _, err := requireAdminSession(r); err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	orgID := chi.URLParam(r, "org_id")
 	if orgID == "" {
 		http.Error(w, "Organization ID required", http.StatusBadRequest)
@@ -338,20 +373,18 @@ func (h *DatastarHandler) HandleOrganizationCancel(w http.ResponseWriter, r *htt
 // Entity Handlers
 
 func (h *DatastarHandler) HandleListEntities(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
-
-	var entities []ontology.Entity
-	var err error
-
-	if orgID != "" {
-		// If org_id is provided, filter by that org
-		entities, err = h.entitySvc.ListEntities(orgID)
-	} else {
-		// Otherwise load all entities
-		entities, err = h.entitySvc.ListAllEntities()
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
 	}
 
+	orgID, entities, err := entitiesForSession(access, r.URL.Query().Get("org_id"), h.entitySvc)
 	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -377,7 +410,16 @@ func (h *DatastarHandler) HandleListEntities(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+	orgID, err := access.authorizeOrg(r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
 	if orgID == "" {
 		http.Error(w, "org_id required for creating entities", http.StatusBadRequest)
 		return
@@ -487,10 +529,23 @@ func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entity_id")
-	orgID := r.URL.Query().Get("org_id")
+	if entityID == "" {
+		http.Error(w, "entity_id required", http.StatusBadRequest)
+		return
+	}
 
-	if orgID == "" || entityID == "" {
-		http.Error(w, "org_id and entity_id required", http.StatusBadRequest)
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+	orgID, _, err := entityForSession(access, r.URL.Query().Get("org_id"), entityID, h.entitySvc)
+	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -591,14 +646,27 @@ func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastarHandler) HandleDeleteEntity(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entity_id")
-	orgID := r.URL.Query().Get("org_id")
-
-	if orgID == "" || entityID == "" {
-		http.Error(w, "org_id and entity_id required", http.StatusBadRequest)
+	if entityID == "" {
+		http.Error(w, "entity_id required", http.StatusBadRequest)
 		return
 	}
 
-	err := h.entitySvc.DeleteEntity(orgID, entityID)
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+	orgID, _, err := entityForSession(access, r.URL.Query().Get("org_id"), entityID, h.entitySvc)
+	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.entitySvc.DeleteEntity(orgID, entityID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -621,15 +689,19 @@ func (h *DatastarHandler) HandleDeleteEntity(w http.ResponseWriter, r *http.Requ
 // Fleet Handlers
 
 func (h *DatastarHandler) HandleListFleet(w http.ResponseWriter, r *http.Request) {
-	// Fetch all entities
-	entities, err := h.entitySvc.ListAllEntities()
+	access, err := sessionAccessFromRequest(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
+	_, entities, err := entitiesForSession(access, "", h.entitySvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch all organizations for rendering
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -656,6 +728,12 @@ func (h *DatastarHandler) HandleListFleet(w http.ResponseWriter, r *http.Request
 }
 
 func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http.Request) {
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	// Log request details for debugging
 	logger.Infof("[FLEET-API] POST /api/fleet - Content-Type: %s, Accept: %s",
 		r.Header.Get("Content-Type"), r.Header.Get("Accept"))
@@ -668,7 +746,11 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 	}
 
 	// Get org_id from form
-	orgID := r.FormValue("org_id")
+	orgID, err := access.authorizeOrg(r.FormValue("org_id"))
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
 	if orgID == "" {
 		http.Error(w, "org_id required", http.StatusBadRequest)
 		return
@@ -728,7 +810,7 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 	logger.Infof("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for rendering the row
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -754,6 +836,12 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 }
 
 func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http.Request) {
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
 	var entityID string
 	var orgID string
 	updates := make(map[string]interface{})
@@ -775,8 +863,18 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 		orgID = oid
 	}
 
-	if entityID == "" || orgID == "" {
-		http.Error(w, "Entity ID and Organization ID required", http.StatusBadRequest)
+	if entityID == "" {
+		http.Error(w, "Entity ID required", http.StatusBadRequest)
+		return
+	}
+
+	orgID, _, err = entityForSession(access, orgID, entityID, h.entitySvc)
+	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -817,7 +915,7 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 	logger.Infof("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for the dropdown in the returned row
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -842,33 +940,22 @@ func (h *DatastarHandler) HandleDeleteFleetEntity(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Get org_id from query
-	orgID := r.URL.Query().Get("org_id")
-
-	logger.Infof("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
-
-	// If org_id not provided, try to find it
-	if orgID == "" {
-		orgs, err := h.orgSvc.ListOrganizations()
-		if err != nil {
-			logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		// Find the entity's org_id
-		for _, org := range orgs {
-			if _, err := h.entitySvc.GetEntity(org.OrgID, entityID); err == nil {
-				orgID = org.OrgID
-				break
-			}
-		}
-	}
-
-	if orgID == "" {
-		http.Error(w, "Could not find entity", http.StatusNotFound)
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
 		return
 	}
+	orgID, _, err := entityForSession(access, r.URL.Query().Get("org_id"), entityID, h.entitySvc)
+	if err != nil {
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+			return
+		}
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("[FLEET-API] DELETE /api/fleet/%s (authorized org_id=%s)", entityID, orgID)
 
 	// Delete the entity
 	if err := h.entitySvc.DeleteEntity(orgID, entityID); err != nil {
@@ -901,28 +988,27 @@ func (h *DatastarHandler) HandleFleetEdit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-EDIT] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch the entity - we need to find its org_id first
-	// Try all organizations to find the entity
-	var entity *ontology.Entity
-	for _, org := range orgs {
-		e, err := h.entitySvc.GetEntity(org.OrgID, entityID)
-		if err == nil {
-			entity = e
-			break
-		}
-	}
-
-	if entity == nil {
+	_, entity, err := entityForSession(access, "", entityID, h.entitySvc)
+	if err != nil {
 		logger.Infof("[FLEET-EDIT] Entity %s not found", entityID)
-		http.Error(w, "Entity not found", http.StatusNotFound)
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -943,27 +1029,27 @@ func (h *DatastarHandler) HandleFleetCancel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	access, err := requireOperatorSession(r)
+	if err != nil {
+		writeSessionAccessError(w, err)
+		return
+	}
+
+	orgs, err := organizationsForSession(access, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-CANCEL] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Fetch the entity
-	var entity *ontology.Entity
-	for _, org := range orgs {
-		e, err := h.entitySvc.GetEntity(org.OrgID, entityID)
-		if err == nil {
-			entity = e
-			break
-		}
-	}
-
-	if entity == nil {
+	_, entity, err := entityForSession(access, "", entityID, h.entitySvc)
+	if err != nil {
 		logger.Infof("[FLEET-CANCEL] Entity %s not found", entityID)
-		http.Error(w, "Entity not found", http.StatusNotFound)
+		if isSessionAccessError(err) {
+			writeSessionAccessError(w, err)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -980,6 +1066,11 @@ func (h *DatastarHandler) HandleFleetCancel(w http.ResponseWriter, r *http.Reque
 // Realtime SSE Handlers
 
 func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request) {
+	access, accessErr := sessionAccessFromRequest(r)
+	if accessErr != nil {
+		writeSessionAccessError(w, accessErr)
+		return
+	}
 	if h.nc == nil {
 		http.Error(w, "NATS not available", http.StatusServiceUnavailable)
 		return
@@ -1000,6 +1091,9 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 		if entityID == "" || orgID == "" {
 			return
 		}
+		if !access.isAdmin() && orgID != access.orgID {
+			return
+		}
 
 		switch event.Type {
 		case shared.EventTypeCreated, shared.EventTypeUpdated:
@@ -1008,7 +1102,7 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 				logger.Errorw("Failed to fetch entity for fleet SSE", "entity_id", entityID, "error", err)
 				return
 			}
-			orgs, err := h.orgSvc.ListOrganizations()
+			orgs, err := organizationsForSession(access, h.orgSvc)
 			if err != nil {
 				logger.Errorw("Failed to fetch orgs for fleet SSE", "error", err)
 				return
@@ -1064,6 +1158,11 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.Request) {
+	access, accessErr := sessionAccessFromRequest(r)
+	if accessErr != nil {
+		writeSessionAccessError(w, accessErr)
+		return
+	}
 	if h.nc == nil {
 		http.Error(w, "NATS not available", http.StatusServiceUnavailable)
 		return
@@ -1081,6 +1180,9 @@ func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.
 
 		orgID, _ := event.Data["org_id"].(string)
 		if orgID == "" {
+			return
+		}
+		if !access.isAdmin() && orgID != access.orgID {
 			return
 		}
 

@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 )
 
@@ -41,7 +42,7 @@ func OrganizationsPanel(organizations []ontology.Organization, selectedOrgID str
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("for")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 17, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 18, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -94,7 +95,18 @@ func OrganizationsTable(organizations []ontology.Organization, selectedOrgID str
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<tr id=\"new-org-form-row\" class=\"form-row-inline\"><form id=\"new-org-form\" data-on:submit__prevent=\"@post('/api/organizations', {contentType: 'form'})\" data-indicator:submitting><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Organization Name *\" required maxlength=\"255\"></td><td><select name=\"org_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" name=\"description\" class=\"inline-form-input\" placeholder=\"Description (optional)\" maxlength=\"500\"></td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></form></tr></tbody></table>")
+		if middleware.UserRoleFromContext(ctx) == "admin" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<tr id=\"new-org-form-row\" class=\"form-row-inline\"><form id=\"new-org-form\" data-on:submit__prevent=\"@post('/api/organizations', {contentType: 'form'})\" data-indicator:submitting><td><input type=\"text\" name=\"name\" class=\"inline-form-input\" placeholder=\"Organization Name *\" required maxlength=\"255\"></td><td><select name=\"org_type\" class=\"inline-form-input\" required><option value=\"\">Select Type *</option> <option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" name=\"description\" class=\"inline-form-input\" placeholder=\"Description (optional)\" maxlength=\"500\"></td><td><button type=\"submit\" class=\"action-btn primary small\" data-attr:disabled=\"$submitting\">Add</button></td></form></tr>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<tr id=\"new-org-form-row\" hidden></tr>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,20 +140,20 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<tr id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<tr id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue("org-row-" + org.OrgID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 82, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 87, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -154,72 +166,92 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><td>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><td>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(org.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 83, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 88, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</td><td class=\"org-type\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</td><td class=\"org-type\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(org.OrgType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 84, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 89, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</td><td><span class=\"status-badge active\">ACTIVE</span></td><td style=\"display: flex; gap: 4px;\"><button class=\"action-btn small\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</td><td><span class=\"status-badge active\">ACTIVE</span></td><td style=\"display: flex; gap: 4px;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("@get('/organizations/edit/" + org.OrgID + "')")
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 88, Col: 67}
+		if middleware.UserRoleFromContext(ctx) == "admin" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<button class=\"action-btn small\" data-on:click=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("@get('/organizations/edit/" + org.OrgID + "')")
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 94, Col: 68}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">Edit</button> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\">Edit</button> <button class=\"action-btn small\" data-org-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<button class=\"action-btn small\" data-org-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(org.OrgID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 92, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 99, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" onclick=\"(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)\" title=\"Copy org_id for fleet device registration\">Copy</button> <button class=\"action-btn small danger\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" onclick=\"(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)\" title=\"Copy org_id for fleet device registration\">Copy</button> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 98, Col: 175}
+		if middleware.UserRoleFromContext(ctx) == "admin" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<button class=\"action-btn small danger\" data-on:click=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 106, Col: 176}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\">Delete</button>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">Delete</button></td></tr>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</td></tr>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -248,20 +280,20 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<tr id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<tr id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("org-row-%s", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 106, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 115, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"form-row-inline\" data-signals=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" class=\"form-row-inline\" data-signals=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -273,26 +305,26 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 			edit_description: '%s'
 		}`, org.OrgID, org.Name, org.OrgType, org.Description))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 112, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 121, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><td><input type=\"text\" data-bind=\"edit_name\" class=\"inline-form-input\" required maxlength=\"255\"></td><td><select data-bind=\"edit_org_type\" class=\"inline-form-input\" required><option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" data-bind=\"edit_description\" class=\"inline-form-input\" maxlength=\"500\"></td><td style=\"display: flex; gap: 4px;\"><button type=\"button\" class=\"action-btn primary small\" data-on:click=\"@put('/api/organizations/update')\" data-indicator:updating data-attr:disabled=\"$updating\">Save</button> <button type=\"button\" class=\"action-btn small\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\"><td><input type=\"text\" data-bind=\"edit_name\" class=\"inline-form-input\" required maxlength=\"255\"></td><td><select data-bind=\"edit_org_type\" class=\"inline-form-input\" required><option value=\"military\">Military</option> <option value=\"civilian\">Civilian</option> <option value=\"commercial\">Commercial</option> <option value=\"ngo\">NGO</option></select></td><td><input type=\"text\" data-bind=\"edit_description\" class=\"inline-form-input\" maxlength=\"500\"></td><td style=\"display: flex; gap: 4px;\"><button type=\"button\" class=\"action-btn primary small\" data-on:click=\"@put('/api/organizations/update')\" data-indicator:updating data-attr:disabled=\"$updating\">Save</button> <button type=\"button\" class=\"action-btn small\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 142, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 151, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">Cancel</button></td></tr>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\">Cancel</button></td></tr>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
