@@ -26,8 +26,10 @@ func TestSecurityHeadersForProduction(t *testing.T) {
 	if got := rec.Header().Get("Strict-Transport-Security"); got == "" {
 		t.Fatal("production response missing HSTS")
 	}
-	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "script-src 'self' 'nonce-") || scriptDirectiveContains(got, "'unsafe-inline'") {
-		t.Fatalf("production CSP does not enforce nonce-only scripts: %q", got)
+	if got := rec.Header().Get("Content-Security-Policy"); !strings.Contains(got, "script-src 'self' 'nonce-") ||
+		!scriptDirectiveContains(got, "'unsafe-eval'") ||
+		scriptDirectiveContains(got, "'unsafe-inline'") {
+		t.Fatalf("production CSP does not preserve nonce-bearing Datastar compatibility: %q", got)
 	}
 }
 

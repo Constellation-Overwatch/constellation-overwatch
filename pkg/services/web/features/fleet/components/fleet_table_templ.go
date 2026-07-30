@@ -391,17 +391,17 @@ func FleetEditRow(organizations []ontology.Organization, entity ontology.Entity)
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{
-			entity_id: '%s',
-			edit_org_id: '%s',
-			edit_name: '%s',
-			edit_entity_type: '%s',
-			edit_status: '%s',
-			edit_priority: '%s',
-			edit_is_live: %t
-		}`, entity.EntityID, entity.OrgID, entity.Name, entity.EntityType, entity.Status, entity.Priority, entity.IsLive))
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.JSONString(map[string]any{
+			"entity_id":        entity.EntityID,
+			"edit_org_id":      entity.OrgID,
+			"edit_name":        entity.Name,
+			"edit_entity_type": entity.EntityType,
+			"edit_status":      entity.Status,
+			"edit_priority":    entity.Priority,
+			"edit_is_live":     entity.IsLive,
+		}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 160, Col: 115}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/fleet/components/fleet_table.templ`, Line: 160, Col: 4}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 		if templ_7745c5c3_Err != nil {
