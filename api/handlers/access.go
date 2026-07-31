@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/danielgtaylor/huma/v2"
 )
 
 func hasAllOrgAccess(ctx context.Context) bool {
-	return middleware.HasScope(middleware.ScopesFromContext(ctx), "admin")
+	return middleware.HasScope(middleware.ScopesFromContext(ctx), shared.ScopeAdmin)
 }
 
 func scopedOrgID(ctx context.Context) string {

@@ -9,6 +9,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -17,6 +18,19 @@ import (
 )
 
 func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
+	return NewRouterWithOrigins(db, nats, middleware.GetAllowedOrigins())
+}
+
+// NewRouterWithOrigins creates the API router with an explicit exact-origin
+// allowlist and no API-key HMAC secret. Production startup uses
+// NewRouterWithRuntimeSecurity with its validated deployment profile.
+func NewRouterWithOrigins(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOrigins []string) http.Handler {
+	return NewRouterWithRuntimeSecurity(db, nats, allowedOrigins, "")
+}
+
+// NewRouterWithRuntimeSecurity creates the API router from immutable,
+// validated origin and API-key hashing configuration.
+func NewRouterWithRuntimeSecurity(db *sql.DB, nats *embeddednats.EmbeddedNATS, allowedOrigins []string, keyHashSecret string) http.Handler {
 	r := chi.NewRouter()
 
 	// Services
@@ -30,13 +44,12 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 	monitorHandler := handlers.NewMonitorHandler()
 
 	// API key authentication middleware
-	apiKeyAuth := middleware.NewAPIKeyMiddleware(db)
+	apiKeyAuth := middleware.NewAPIKeyMiddlewareWithSecret(db, keyHashSecret)
 
 	// Global middleware
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.Throttle(100))
 	r.Use(middleware.MaxBodySize(1 << 20))
-	r.Use(middleware.CORS)
+	r.Use(middleware.CORSForOrigins(allowedOrigins))
 
 	// Huma API configuration (shared OpenAPI spec)
 	config := huma.DefaultConfig("Constellation Overwatch API", "1.0.0")
@@ -58,13 +71,18 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 	// Public Huma API — serves /docs and /openapi.json on the main router
 	publicAPI := humachi.New(r, config)
-	healthHandler.Register(publicAPI)
+	_ = publicAPI
 
 	// SSE monitor — raw chi (long-lived, not REST)
-	r.Get("/v1/sys/monitor/sse", monitorHandler.SSE)
+	r.With(
+		apiKeyAuth.Authenticate,
+		middleware.RequireScope(shared.ScopeAdmin),
+		middleware.LimitConcurrentFor(4, time.Hour),
+	).Get("/v1/sys/monitor/sse", monitorHandler.SSE)
 
 	// Authenticated sub-router — chi middleware for auth + timeout
 	authR := chi.NewRouter()
+	authR.Use(chimw.Throttle(100))
 	authR.Use(chimw.Timeout(30 * time.Second))
 	authR.Use(apiKeyAuth.Authenticate)
 
@@ -77,6 +95,7 @@ func NewRouter(db *sql.DB, nats *embeddednats.EmbeddedNATS) http.Handler {
 
 	// Scope enforcement via Huma middleware (reads context set by chi auth middleware)
 	authAPI.UseMiddleware(scopeMiddleware(authAPI))
+	healthHandler.Register(authAPI)
 
 	// Register CRUD operations (written to shared spec, served on auth router)
 	orgHandler.Register(authAPI)

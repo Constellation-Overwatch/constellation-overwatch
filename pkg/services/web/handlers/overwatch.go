@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"sync"
@@ -376,6 +377,11 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -433,8 +439,11 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 	totalEntities := 0
 
 	for _, update := range initialUpdates {
-		totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
+		if overwatchUpdateAllowed(update, orgID, knownEntities) {
+			queueOverwatchUpdate(update, dirtyStates, removedEntities)
+		}
 	}
+	totalEntities = h.countOverwatchEntities(orgID)
 	h.flushOverwatchUpdates(w, flusher, &writeMutex, sse, dirtyStates, removedEntities, totalEntities, knownEntities, knownOrgs, viewMode)
 
 	ticker := time.NewTicker(15 * time.Second)
@@ -462,12 +471,26 @@ func (h *OverwatchHandler) HandleAPIOverwatchKVWatch(w http.ResponseWriter, r *h
 				return
 			}
 			if update.FullSnapshot {
-				totalEntities = h.queueFullOverwatchSnapshot(knownEntities, dirtyStates, removedEntities)
+				totalEntities = h.queueFullOverwatchSnapshot(orgID, knownEntities, dirtyStates, removedEntities)
 				continue
 			}
-			totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
+			if overwatchUpdateAllowed(update, orgID, knownEntities) {
+				queueOverwatchUpdate(update, dirtyStates, removedEntities)
+				totalEntities = h.countOverwatchEntities(orgID)
+			}
 		}
 	}
+}
+
+func overwatchUpdateAllowed(update overwatchKVUpdate, orgID string, knownEntities map[string]string) bool {
+	if orgID == "" {
+		return true
+	}
+	if update.Removed {
+		knownOrgID, known := knownEntities[update.EntityID]
+		return known && knownOrgID == orgID
+	}
+	return update.State.OrgID == orgID
 }
 
 func queueOverwatchUpdate(update overwatchKVUpdate, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool) int {
@@ -482,14 +505,20 @@ func queueOverwatchUpdate(update overwatchKVUpdate, dirtyStates map[string]share
 	return update.TotalEntities
 }
 
-func (h *OverwatchHandler) queueFullOverwatchSnapshot(knownEntities map[string]string, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool) int {
+func (h *OverwatchHandler) queueFullOverwatchSnapshot(orgID string, knownEntities map[string]string, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool) int {
 	updates := h.kvBroadcaster.Snapshot()
 	seen := make(map[string]bool, len(updates))
 	totalEntities := 0
 
 	for _, update := range updates {
-		totalEntities = queueOverwatchUpdate(update, dirtyStates, removedEntities)
+		if !overwatchUpdateAllowed(update, orgID, knownEntities) {
+			continue
+		}
+		queueOverwatchUpdate(update, dirtyStates, removedEntities)
 		seen[update.EntityID] = true
+		if !update.Removed {
+			totalEntities++
+		}
 	}
 
 	for entityID := range knownEntities {
@@ -500,6 +529,16 @@ func (h *OverwatchHandler) queueFullOverwatchSnapshot(knownEntities map[string]s
 	}
 
 	return totalEntities
+}
+
+func (h *OverwatchHandler) countOverwatchEntities(orgID string) int {
+	count := 0
+	for _, update := range h.kvBroadcaster.Snapshot() {
+		if !update.Removed && (orgID == "" || update.State.OrgID == orgID) {
+			count++
+		}
+	}
+	return count
 }
 
 func (h *OverwatchHandler) flushOverwatchUpdates(w http.ResponseWriter, flusher http.Flusher, writeMutex *sync.Mutex, sse *datastar.ServerSentEventGenerator, dirtyStates map[string]shared.EntityState, removedEntities map[string]bool, totalEntities int, knownEntities map[string]string, knownOrgs map[string]bool, viewMode string) {
@@ -655,7 +694,7 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 				if entityState.OrgName != "" {
 					orgName = entityState.OrgName
 				}
-				orgHTML.WriteString(fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, orgName))
+				orgHTML.WriteString(renderOrganizationHeader(orgName))
 
 				if err := sse.PatchElements(orgHTML.String(), datastar.WithSelector(containerSelector), datastar.WithModeAppend()); err != nil {
 					logger.Debugw("Failed to patch org container, connection may be closed", "error", err)
@@ -811,6 +850,10 @@ func (h *OverwatchHandler) renderAndFlushSnapshot(w http.ResponseWriter, flusher
 			}
 		}()
 	}
+}
+
+func renderOrganizationHeader(orgName string) string {
+	return fmt.Sprintf(`<div class="org-section"><div class="org-header">Organization: %s</div></div>`, html.EscapeString(orgName))
 }
 
 // API handler for debugging KV data structure

@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"math"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/protocol"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 
 	"github.com/nats-io/nats.go"
 )
@@ -57,11 +59,17 @@ func NewTelemetryWorker(nc *nats.Conn, js nats.JetStreamContext, db *sql.DB, kv 
 }
 
 func (w *TelemetryWorker) Start(ctx context.Context) error {
-	return w.processMessages(ctx, w.handleTelemetryMessage)
+	return w.processMessages(ctx, func(msg *nats.Msg) error {
+		return w.handleTelemetryMessageContext(ctx, msg)
+	})
 }
 
 // handleTelemetryMessage processes a single telemetry message
 func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
+	return w.handleTelemetryMessageContext(context.Background(), msg)
+}
+
+func (w *TelemetryWorker) handleTelemetryMessageContext(ctx context.Context, msg *nats.Msg) error {
 	// Parse subject: constellation.telemetry.{org_id}.{entity_id}
 	entityID, orgID, err := w.parseSubject(msg.Subject)
 	if err != nil {
@@ -70,31 +78,19 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 	}
 
 	// Parse MAVLink telemetry
-	var telemetry shared.MAVLinkTelemetry
-	if err := json.Unmarshal(msg.Data, &telemetry); err != nil {
-		logger.Errorw("Failed to unmarshal telemetry", "worker", w.Name(), "error", err)
-		return fmt.Errorf("failed to unmarshal telemetry: %w", err)
+	telemetry, err := protocol.DecodeTelemetry(msg.Data)
+	if err != nil {
+		logger.Warnw("Rejected malformed telemetry envelope", "worker", w.Name(), "subject", msg.Subject, "error", err)
+		return err
 	}
-
-	// Parse timestamp
-	if telemetry.Timestamp.IsZero() {
-		// Try to parse from string if not already parsed
-		if timestampStr, ok := telemetry.Data["timestamp"].(string); ok {
-			if t, err := time.Parse(time.RFC3339, timestampStr); err != nil {
-				logger.Debugw("Failed to parse timestamp", "value", timestampStr, "error", err)
-			} else {
-				telemetry.Timestamp = t
-			}
-		}
-		if telemetry.Timestamp.IsZero() {
-			telemetry.Timestamp = time.Now()
-		}
+	if telemetry.EntityID != entityID || telemetry.OrgID != orgID {
+		return fmt.Errorf("telemetry subject identity %s/%s does not match envelope %s/%s", orgID, entityID, telemetry.OrgID, telemetry.EntityID)
 	}
 
 	// Reject unknown entity IDs instead of growing registry/cache from arbitrary telemetry.
 	if !w.registry.IsRegistered(entityID) {
 		logger.Warnw("Rejected telemetry for unregistered entity", "worker", w.Name(), "entity_id", entityID, "org_id", orgID)
-		return nil
+		return fmt.Errorf("telemetry entity %s is not registered", entityID)
 	}
 
 	// Get or create entity state
@@ -103,68 +99,62 @@ func (w *TelemetryWorker) handleTelemetryMessage(msg *nats.Msg) error {
 		logger.Errorw("Failed to get entity state", "worker", w.Name(), "entity_id", entityID, "error", err)
 		return fmt.Errorf("failed to get entity state: %w", err)
 	}
-
-	// Update state based on message type
-	updated := w.updateEntityState(state, &telemetry)
-	if !updated {
-		// Unknown message type - store in metadata for debugging
-		if state.Metadata == nil {
-			state.Metadata = make(map[string]any)
-		}
-		state.Metadata[fmt.Sprintf("last_%s", telemetry.MessageType)] = telemetry.Data
+	if state.OrgID != orgID {
+		return fmt.Errorf("telemetry organization %s does not match entity organization %s", orgID, state.OrgID)
+	}
+	// Work on an isolated copy. The cache is the last successfully persisted
+	// projection; mutating its pointer before a CAS write succeeds can make a
+	// redelivery look stale and silently acknowledge data that never reached KV.
+	state, err = cloneEntityState(state)
+	if err != nil {
+		return fmt.Errorf("clone entity state: %w", err)
 	}
 
-	// Update timestamp
-	state.UpdatedAt = time.Now()
+	// Update state based on message type
+	if state.TelemetryCursors == nil {
+		state.TelemetryCursors = make(map[string]shared.TelemetryCursor)
+	}
+	if cursor, ok := state.TelemetryCursors[telemetry.MessageType]; ok && !telemetry.Timestamp.After(cursor.Timestamp) {
+		logger.Debugw("Ignored duplicate or stale telemetry", "worker", w.Name(), "entity_id", entityID, "message_type", telemetry.MessageType, "message_uid", telemetry.MessageUID)
+		return nil
+	}
+
+	updated := w.updateEntityState(state, &telemetry)
+	if !updated {
+		return fmt.Errorf("unsupported telemetry message_type %q", telemetry.MessageType)
+	}
+
+	state.TelemetryCursors[telemetry.MessageType] = shared.TelemetryCursor{MessageUID: telemetry.MessageUID, Timestamp: telemetry.Timestamp}
+	state.SystemID = telemetry.SystemID
+	state.ComponentID = telemetry.ComponentID
+	state.LastSeen = laterTime(state.LastSeen, telemetry.Timestamp)
+	state.UpdatedAt = laterTime(state.UpdatedAt, telemetry.Timestamp)
 	state.IsLive = true
 
-	// NOTE: KV writing is disabled - mavlink2constellation handles KV state updates
-	// Just update the local cache for any in-process lookups
-	w.updateCache(state)
+	if err := w.saveEntityState(ctx, state); err != nil {
+		return fmt.Errorf("persist telemetry state: %w", err)
+	}
 
-	logger.Debugw("Processed telemetry (KV write disabled)", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
+	logger.Debugw("Processed telemetry", "worker", w.Name(), "entity_id", entityID, "entity_type", state.EntityType, "message_type", telemetry.MessageType)
 	return nil
+}
+
+func cloneEntityState(state *shared.EntityState) (*shared.EntityState, error) {
+	data, err := json.Marshal(state)
+	if err != nil {
+		return nil, err
+	}
+	var clone shared.EntityState
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, err
+	}
+	return &clone, nil
 }
 
 // parseSubject extracts entity_id and org_id from NATS subject
 func (w *TelemetryWorker) parseSubject(subject string) (entityID, orgID string, err error) {
-	// Subject format: constellation.telemetry.{org_id}.{entity_id}
-	// Also supports: constellation.telemetry.{category}.{org_id}.{entity_id}
-	parts := strings.Split(subject, ".")
-
-	logger.Debugw("Parsing subject", "worker", w.Name(), "subject", subject, "parts", len(parts))
-
-	// Must have at least constellation.telemetry.org_id.entity_id (4 parts)
-	if len(parts) < 4 {
-		return "", "", fmt.Errorf("invalid subject format (too few parts): %s", subject)
-	}
-
-	// Support both 4-part and 5-part subjects:
-	// 4-part: constellation.telemetry.{org_id}.{entity_id}
-	// 5-part: constellation.telemetry.{category}.{org_id}.{entity_id}
-	if len(parts) == 4 {
-		orgID = parts[2]
-		entityID = parts[3]
-	} else {
-		// 5+ parts: last two are org_id and entity_id
-		orgID = parts[len(parts)-2]
-		entityID = parts[len(parts)-1]
-		logger.Debugw("Using extended subject format", "worker", w.Name(), "category", parts[2])
-	}
-
-	// Validate entity_id is not empty
-	if entityID == "" {
-		return "", "", fmt.Errorf("entity_id is empty in subject: %s", subject)
-	}
-
-	// Validate org_id is not empty
-	if orgID == "" {
-		logger.Warnw("org_id is empty in subject", "worker", w.Name(), "subject", subject)
-		orgID = "unknown"
-	}
-
-	logger.Debugw("Parsed subject", "worker", w.Name(), "subject", subject, "entity_id", entityID, "org_id", orgID)
-	return entityID, orgID, nil
+	orgID, entityID, err = protocol.ParseTelemetrySubject(subject)
+	return entityID, orgID, err
 }
 
 // getOrCreateEntityState retrieves entity state from cache or creates new one
@@ -185,6 +175,9 @@ func (w *TelemetryWorker) getOrCreateEntityState(entityID, orgID string) (*share
 		w.entityCache[entityID] = state
 		w.cacheMutex.Unlock()
 		return state, nil
+	}
+	if !errors.Is(err, nats.ErrKeyNotFound) {
+		return nil, fmt.Errorf("load entity state: %w", err)
 	}
 
 	// Not in KV, fetch from database and initialize
@@ -330,15 +323,18 @@ func (w *TelemetryWorker) loadEntityState(entityID string) (*shared.EntityState,
 
 // saveEntityState saves entity state to KV store with merge support
 // This uses Read-Modify-Write with optimistic locking to preserve data from other publishers
-func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
+func (w *TelemetryWorker) saveEntityState(ctx context.Context, state *shared.EntityState) error {
 	if state.EntityID == "" {
 		return fmt.Errorf("entity_id is empty, cannot create KV key")
 	}
 
 	key := shared.EntityKey(state.EntityID)
-	maxRetries := 3
+	const maxRetries = 5
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Try to get existing entry with revision
 		existingEntry, err := w.kv.Get(key)
 
@@ -369,12 +365,10 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 		// Key exists - merge with existing data
 		var existingState shared.EntityState
 		if err := json.Unmarshal(existingEntry.Value(), &existingState); err != nil {
-			logger.Warnw("Failed to unmarshal existing state, will overwrite", "worker", w.Name(), "error", err)
-			// Fall through to just write new state
-		} else {
-			// Merge: preserve C4ISR data from Python service, update telemetry from this worker
-			state = w.mergeTelemetryWithDetections(&existingState, state)
+			return fmt.Errorf("decode existing entity state: %w", err)
 		}
+		// Preserve fields owned by other Hub workers while replacing telemetry-owned fields.
+		state = w.mergeTelemetryWithDetections(&existingState, state)
 
 		// Marshal merged state
 		data, err := json.Marshal(state)
@@ -387,6 +381,9 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 			if errors.Is(err, nats.ErrKeyExists) || strings.Contains(err.Error(), "wrong last sequence") {
 				// Revision mismatch - someone else updated between our read and write
 				logger.Debugw("Revision mismatch, retrying", "worker", w.Name(), "key", key, "attempt", attempt+1, "max_retries", maxRetries)
+				if err := waitForRetry(ctx, attempt); err != nil {
+					return err
+				}
 				continue
 			}
 			return fmt.Errorf("failed to update entity state (key='%s'): %w", key, err)
@@ -398,6 +395,18 @@ func (w *TelemetryWorker) saveEntityState(state *shared.EntityState) error {
 	}
 
 	return fmt.Errorf("failed to save entity state after %d attempts (revision conflicts)", maxRetries)
+}
+
+func waitForRetry(ctx context.Context, attempt int) error {
+	delay := 10 * time.Millisecond * time.Duration(1<<attempt)
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // mergeTelemetryWithDetections merges telemetry data with existing detection/analytics data
@@ -434,8 +443,12 @@ func (w *TelemetryWorker) mergeTelemetryWithDetections(existing, telemetry *shar
 	}
 
 	// Update core entity metadata
-	merged.UpdatedAt = telemetry.UpdatedAt
+	merged.UpdatedAt = laterTime(existing.UpdatedAt, telemetry.UpdatedAt)
 	merged.IsLive = telemetry.IsLive
+	merged.SystemID = telemetry.SystemID
+	merged.ComponentID = telemetry.ComponentID
+	merged.LastSeen = laterTime(existing.LastSeen, telemetry.LastSeen)
+	merged.TelemetryCursors = telemetry.TelemetryCursors
 
 	// Preserve detection/analytics fields from existing state (Python service owns these)
 	// No need to explicitly copy since we started with existing state
@@ -459,6 +472,8 @@ func (w *TelemetryWorker) updateEntityState(state *shared.EntityState, msg *shar
 		w.updateSysStatus(state, msg.Data, msg.Timestamp)
 	case "GPS_RAW_INT":
 		w.updateGPSRaw(state, msg.Data, msg.Timestamp)
+	case "GLOBAL_POSITION_INT":
+		w.updateGlobalPosition(state, msg.Data, msg.Timestamp)
 	case "ATTITUDE":
 		w.updateAttitude(state, msg.Data, msg.Timestamp)
 	case "ATTITUDE_QUATERNION":
@@ -554,20 +569,20 @@ func (w *TelemetryWorker) updateGPSRaw(state *shared.EntityState, data map[strin
 		state.Position.Global = &shared.GlobalPosition{}
 	}
 
-	if lat, ok := getFloat64(data, "lat"); ok {
-		state.Position.Global.Latitude = lat / 1e7 // MAVLink sends lat*1e7
+	if lat, ok := getInt32InRange(data, "lat", -900000000, 900000000); ok {
+		state.Position.Global.Latitude = float64(lat) / 1e7 // MAVLink sends lat*1e7
 	}
-	if lon, ok := getFloat64(data, "lon"); ok {
-		state.Position.Global.Longitude = lon / 1e7
+	if lon, ok := getInt32InRange(data, "lon", -1800000000, 1800000000); ok {
+		state.Position.Global.Longitude = float64(lon) / 1e7
 	}
-	if alt, ok := getFloat64(data, "alt"); ok {
-		state.Position.Global.AltitudeMSL = alt / 1000.0 // MAVLink sends alt in mm
+	if alt, ok := getInt32(data, "alt"); ok {
+		state.Position.Global.AltitudeMSL = float64(alt) / 1000.0 // MAVLink sends alt in mm
 	}
-	if eph, ok := getFloat64(data, "eph"); ok {
-		state.Position.Global.AccuracyH = eph / 100.0
+	if eph, ok := getUint16(data, "eph"); ok {
+		state.Position.Global.AccuracyH = float64(eph) / 100.0
 	}
-	if epv, ok := getFloat64(data, "epv"); ok {
-		state.Position.Global.AccuracyV = epv / 100.0
+	if epv, ok := getUint16(data, "epv"); ok {
+		state.Position.Global.AccuracyV = float64(epv) / 100.0
 	}
 	if satsVisible, ok := getUint8(data, "satellites_visible"); ok {
 		state.Position.Global.SatellitesVisible = int(satsVisible)
@@ -577,6 +592,43 @@ func (w *TelemetryWorker) updateGPSRaw(state *shared.EntityState, data map[strin
 	}
 
 	state.Position.Global.Timestamp = ts
+}
+
+func (w *TelemetryWorker) updateGlobalPosition(state *shared.EntityState, data map[string]any, ts time.Time) {
+	if state.Position == nil {
+		state.Position = &shared.PositionState{}
+	}
+	if state.Position.Global == nil {
+		state.Position.Global = &shared.GlobalPosition{}
+	}
+	if state.Position.Local == nil {
+		state.Position.Local = &shared.LocalPosition{}
+	}
+
+	if lat, ok := getInt32InRange(data, "lat", -900000000, 900000000); ok {
+		state.Position.Global.Latitude = float64(lat) / 1e7
+	}
+	if lon, ok := getInt32InRange(data, "lon", -1800000000, 1800000000); ok {
+		state.Position.Global.Longitude = float64(lon) / 1e7
+	}
+	if alt, ok := getInt32(data, "alt"); ok {
+		state.Position.Global.AltitudeMSL = float64(alt) / 1000
+	}
+	if relativeAlt, ok := getInt32(data, "relative_alt"); ok {
+		state.Position.Global.AltitudeRelative = float64(relativeAlt) / 1000
+	}
+	if vx, ok := getInt16(data, "vx"); ok {
+		state.Position.Local.VX = float64(vx) / 100
+	}
+	if vy, ok := getInt16(data, "vy"); ok {
+		state.Position.Local.VY = float64(vy) / 100
+	}
+	if vz, ok := getInt16(data, "vz"); ok {
+		state.Position.Local.VZ = float64(vz) / 100
+	}
+
+	state.Position.Global.Timestamp = ts
+	state.Position.Local.Timestamp = ts
 }
 
 func (w *TelemetryWorker) updateAttitude(state *shared.EntityState, data map[string]any, ts time.Time) {
@@ -896,6 +948,15 @@ func getInt32(data map[string]any, key string) (int32, bool) {
 		return 0, false
 	}
 	converted, ok := checkedIntRange(key, value, minInt32, maxInt32)
+	return int32(converted), ok
+}
+
+func getInt32InRange(data map[string]any, key string, min, max int32) (int32, bool) {
+	value, ok := getFloat64(data, key)
+	if !ok {
+		return 0, false
+	}
+	converted, ok := checkedIntRange(key, value, int64(min), int64(max))
 	return int32(converted), ok
 }
 

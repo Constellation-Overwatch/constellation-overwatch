@@ -9,22 +9,30 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 )
 
 // APIKeyMiddleware handles API key authentication and scope enforcement.
 type APIKeyMiddleware struct {
-	db *sql.DB
+	db            *sql.DB
+	keyHashSecret string
 }
 
-// NewAPIKeyMiddleware creates a new APIKeyMiddleware with the given database connection.
+// NewAPIKeyMiddleware creates a development-compatible middleware. Production
+// startup must use NewAPIKeyMiddlewareWithSecret with its validated snapshot.
 func NewAPIKeyMiddleware(db *sql.DB) *APIKeyMiddleware {
-	return &APIKeyMiddleware{db: db}
+	return NewAPIKeyMiddlewareWithSecret(db, "")
+}
+
+// NewAPIKeyMiddlewareWithSecret binds authentication to the same immutable
+// secret snapshot used when API keys are created.
+func NewAPIKeyMiddlewareWithSecret(db *sql.DB, keyHashSecret string) *APIKeyMiddleware {
+	return &APIKeyMiddleware{db: db, keyHashSecret: keyHashSecret}
 }
 
 // Authenticate is HTTP middleware that validates API keys from the X-API-Key header
@@ -33,7 +41,7 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := extractAPIKey(r)
 		if raw == "" {
-			writeJSONError(w, http.StatusUnauthorized,"Missing API key or Authorization header")
+			writeJSONError(w, http.StatusUnauthorized, "Missing API key or Authorization header")
 			return
 		}
 
@@ -44,14 +52,14 @@ func (m *APIKeyMiddleware) Authenticate(next http.Handler) http.Handler {
 		}
 
 		// No recognized prefix — reject.
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 	})
 }
 
 // authenticateDBKey hashes the raw key, looks it up in the api_keys table,
 // and injects identity claims into the request context.
 func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Request, next http.Handler, raw string) {
-	hash := hashKey(raw)
+	hash := hashKey(raw, m.keyHashSecret)
 
 	var keyID, userID, orgID, role, scopesJSON string
 	var revoked int
@@ -63,7 +71,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	).Scan(&keyID, &userID, &orgID, &role, &scopesJSON, &revoked, &expiresAt)
 
 	// If HMAC lookup failed and HMAC is enabled, try legacy SHA-256 fallback.
-	if errors.Is(err, sql.ErrNoRows) && os.Getenv("OVERWATCH_KEY_HASH_SECRET") != "" {
+	if errors.Is(err, sql.ErrNoRows) && m.keyHashSecret != "" {
 		legacyHash := sha256Hex(raw)
 		err = m.db.QueryRow(
 			`SELECT key_id, user_id, org_id, role, scopes, revoked, expires_at
@@ -80,7 +88,7 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		writeJSONError(w, http.StatusUnauthorized,"Invalid API key")
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API key")
 		return
 	}
 	if err != nil {
@@ -90,20 +98,20 @@ func (m *APIKeyMiddleware) authenticateDBKey(w http.ResponseWriter, r *http.Requ
 	}
 
 	if revoked == 1 {
-		writeJSONError(w, http.StatusUnauthorized,"API key has been revoked")
+		writeJSONError(w, http.StatusUnauthorized, "API key has been revoked")
 		return
 	}
 
 	if expiresAt.Valid {
 		exp, parseErr := time.Parse(time.RFC3339, expiresAt.String)
 		if parseErr == nil && time.Now().After(exp) {
-			writeJSONError(w, http.StatusUnauthorized,"API key has expired")
+			writeJSONError(w, http.StatusUnauthorized, "API key has expired")
 			return
 		}
 	}
 
 	// Parse scopes from comma-separated string.
-	scopes := parseScopes(scopesJSON)
+	scopes, _ := shared.MigrateStoredAPIKeyScopes(shared.ParseStoredAPIKeyScopes(scopesJSON))
 
 	// Update last_used inline with a short timeout so it doesn't block the
 	// request for long, but avoids unbounded goroutine-per-request growth.
@@ -163,11 +171,9 @@ func extractAPIKey(r *http.Request) string {
 
 var hmacWarnOnce sync.Once
 
-// hashKey computes the HMAC-SHA256 hex digest of a raw API key when
-// OVERWATCH_KEY_HASH_SECRET is set, falling back to plain SHA-256 for
-// development.
-func hashKey(raw string) string {
-	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+// hashKey computes the HMAC-SHA256 hex digest of a raw API key when a validated
+// secret is supplied, falling back to plain SHA-256 for development.
+func hashKey(raw, secret string) string {
 	if secret == "" {
 		hmacWarnOnce.Do(func() {
 			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash")
@@ -185,24 +191,10 @@ func sha256Hex(raw string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// parseScopes splits a comma-separated scope string into a slice.
-func parseScopes(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var scopes []string
-	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			scopes = append(scopes, trimmed)
-		}
-	}
-	return scopes
-}
-
 // HasScope checks whether the given scope (or "admin") is present in the list.
 func HasScope(scopes []string, required string) bool {
 	for _, s := range scopes {
-		if s == required || s == "admin" {
+		if s == required || s == shared.ScopeAdmin {
 			return true
 		}
 	}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
@@ -104,6 +105,10 @@ func (h *AdminHandler) HandleCreateInvite(w http.ResponseWriter, r *http.Request
 	invite, plainToken, err := h.inviteSvc.CreateInvite(orgID, req.Email, req.Role, invitedBy)
 	if err != nil {
 		logger.Errorf("Failed to create invite for %s: %v", req.Email, err)
+		if errors.Is(err, services.ErrInviteForbidden) {
+			sendError(w, http.StatusForbidden, "FORBIDDEN", "Invite cannot be created by this user")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create invite")
 		return
 	}
@@ -132,8 +137,17 @@ func (h *AdminHandler) HandleRevokeInvite(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.inviteSvc.RevokeInvite(inviteID); err != nil {
+	revokedBy := middleware.UserIDFromContext(r.Context())
+	if err := h.inviteSvc.RevokeInvite(inviteID, revokedBy); err != nil {
 		logger.Errorf("Failed to revoke invite %s: %v", inviteID, err)
+		if errors.Is(err, services.ErrInviteForbidden) {
+			sendError(w, http.StatusForbidden, "FORBIDDEN", "Invite cannot be revoked by this user")
+			return
+		}
+		if errors.Is(err, shared.ErrNotFound) {
+			sendError(w, http.StatusConflict, "NOT_PENDING", "Invite is not pending")
+			return
+		}
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to revoke invite")
 		return
 	}
@@ -176,6 +190,10 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	created, err := h.apiKeySvc.CreateKey(userID, orgID, req.Name, req.Scopes, nil)
 	if err != nil {
+		if errors.Is(err, shared.ErrInvalidAPIKeyScope) {
+			sendError(w, http.StatusBadRequest, "INVALID_SCOPE", err.Error())
+			return
+		}
 		logger.Errorf("Failed to create API key %q: %v", req.Name, err)
 		sendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to create API key")
 		return
@@ -183,7 +201,7 @@ func (h *AdminHandler) HandleCreateAPIKey(w http.ResponseWriter, r *http.Request
 
 	// If an NKey was generated, register it with the NATS server.
 	if created.NATSPubKey != "" && h.natsEmbedded != nil {
-		perms := embeddednats.BuildNATSPermissions(req.Scopes, orgID)
+		perms := embeddednats.BuildNATSPermissions(created.Scopes, orgID)
 		if perms != nil {
 			if err := h.natsEmbedded.AddNKeyUser(created.NATSPubKey, perms); err != nil {
 				logger.Errorf("Failed to register NKey with NATS: %v", err)

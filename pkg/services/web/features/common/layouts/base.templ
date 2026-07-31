@@ -11,7 +11,8 @@ templ Base(title string) {
 			<title>{ title } - C4 Overwatch</title>
 			<link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg"/>
 			<link rel="stylesheet" href="/static/css/style.css"/>
-			<script type="module" src="/static/lib/datastar.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } type="module" src="/static/lib/datastar.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } src="/static/js/entity-card.js"></script>
 		</head>
 		<body>
 			if dev.IsDev() {
@@ -43,7 +44,8 @@ templ BaseWithStyles(title string, styles []string) {
 			for _, style := range styles {
 				<link rel="stylesheet" href={ style }/>
 			}
-			<script type="module" src="/static/lib/datastar.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } type="module" src="/static/lib/datastar.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } src="/static/js/entity-card.js"></script>
 		</head>
 		<body>
 			if dev.IsDev() {

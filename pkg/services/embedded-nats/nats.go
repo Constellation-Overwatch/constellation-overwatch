@@ -42,6 +42,8 @@ type EmbeddedNATS struct {
 	authToken  string          // internal auth token for embedded connections
 }
 
+const internalNATSUsername = "overwatch-internal"
+
 // NKeyRecord is the minimal data needed to restore a NATS credential on startup.
 type NKeyRecord struct {
 	NATSPubKey string
@@ -165,8 +167,13 @@ func (en *EmbeddedNATS) StartEmbedded() error {
 		Logtime: true,
 		NoSigs:  true, // Disable built-in signal handlers
 
-		// Internal auth token for embedded connections
-		Authorization: en.authToken,
+		// A named internal user can coexist with the scoped edge NKey users.
+		// The server's single Authorization token mode is mutually exclusive
+		// with Users/Nkeys and would stop accepting edge NKeys after reload.
+		Users: []*server.User{{
+			Username: internalNATSUsername,
+			Password: en.authToken,
+		}},
 	}
 
 	// Configure JetStream limits
@@ -235,7 +242,7 @@ func (en *EmbeddedNATS) initializeStreamsAndConsumers() error {
 	}{
 		{shared.StreamEntities, shared.ConsumerEntityProcessor, shared.SubjectEntitiesAll},
 		{shared.StreamCommands, shared.ConsumerCommandProcessor, shared.SubjectCommandsAll},
-		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectEventsAll},
+		{shared.StreamEvents, shared.ConsumerEventProcessor, shared.SubjectDetectionsAll},
 		{shared.StreamTelemetry, shared.ConsumerTelemetryProcessor, shared.SubjectTelemetryAll},
 	}
 
@@ -258,7 +265,7 @@ func (en *EmbeddedNATS) connect() error {
 	url := fmt.Sprintf("nats://localhost:%d", en.config.Port)
 
 	connectOpts := []nats.Option{
-		nats.Token(en.authToken),
+		nats.UserInfo(internalNATSUsername, en.authToken),
 		nats.ReconnectWait(2 * time.Second),
 		nats.MaxReconnects(-1),
 		nats.PingInterval(20 * time.Second),
@@ -388,8 +395,8 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			Retention:       nats.LimitsPolicy,
 			MaxMsgs:         10000,
 			MaxBytes:        32 * 1024 * 1024,   // 32MB
-			MaxAge:          7 * 24 * time.Hour,  // 7 days
-			MaxMsgSize:      256 * 1024,          // 256KB
+			MaxAge:          7 * 24 * time.Hour, // 7 days
+			MaxMsgSize:      256 * 1024,         // 256KB
 			Replicas:        1,
 			DuplicateWindow: 2 * time.Minute,
 			AllowRollup:     false,
@@ -409,6 +416,20 @@ func (en *EmbeddedNATS) CreateConstellationStreams() error {
 			AllowRollup:     false,
 			AllowDirect:     false,           // Commands must go through stream
 			DiscardPolicy:   nats.DiscardNew, // Reject new commands if full
+		},
+		{
+			Name:            shared.StreamQuarantine,
+			Subjects:        []string{shared.SubjectQuarantineAll},
+			Retention:       nats.LimitsPolicy,
+			MaxMsgs:         10000,
+			MaxBytes:        64 * 1024 * 1024,
+			MaxAge:          7 * 24 * time.Hour,
+			MaxMsgSize:      512 * 1024,
+			Replicas:        1,
+			DuplicateWindow: 2 * time.Minute,
+			AllowRollup:     false,
+			AllowDirect:     false,
+			DiscardPolicy:   nats.DiscardOld,
 		},
 	}
 
@@ -471,17 +492,20 @@ func (en *EmbeddedNATS) CreateDurableConsumer(streamName, consumerName string, f
 		FilterSubject: filterSubject,
 		AckPolicy:     nats.AckExplicitPolicy,
 		AckWait:       30 * time.Second,
-		MaxDeliver:    3,
+		MaxDeliver:    5,
 		MaxAckPending: 1000,
 		DeliverPolicy: nats.DeliverAllPolicy,
 		ReplayPolicy:  nats.ReplayInstantPolicy,
 	}
 
-	// Try to get existing consumer
+	// Update existing consumers so policy changes (including poison-message
+	// retry budgets) take effect on upgrades.
 	_, err := en.js.ConsumerInfo(streamName, consumerName)
 	if err == nil {
-		// Consumer exists
-		logger.Debug("Durable consumer already exists",
+		if _, err := en.js.UpdateConsumer(streamName, config); err != nil {
+			return fmt.Errorf("failed to update consumer %s: %w", consumerName, err)
+		}
+		logger.Debug("Updated durable consumer",
 			zap.String("consumer", consumerName),
 			zap.String("stream", streamName))
 		return nil
@@ -758,7 +782,7 @@ type quietLogger struct{}
 
 func (q *quietLogger) Noticef(format string, v ...any) {}
 func (q *quietLogger) Debugf(format string, v ...any)  {}
-func (q *quietLogger) Tracef(format string, v ...any)   {}
+func (q *quietLogger) Tracef(format string, v ...any)  {}
 func (q *quietLogger) Warnf(format string, v ...any) {
 	logger.Warnw(fmt.Sprintf(format, v...), "component", "nats")
 }
@@ -771,29 +795,28 @@ func (q *quietLogger) Fatalf(format string, v ...any) {
 
 // BuildNATSPermissions converts scope strings to NATS subject permissions.
 func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
-	var pubAllow, subAllow []string
+	if orgID == "" {
+		return nil
+	}
 
-	baseAllow := []string{"$JS.API.>", "_INBOX.>"}
+	var pubAllow, subAllow []string
 
 	for _, scope := range scopes {
 		switch scope {
-		case "nats:all":
-			return &server.Permissions{
-				Publish:   &server.SubjectPermission{Allow: []string{">"}},
-				Subscribe: &server.SubjectPermission{Allow: []string{">"}},
-			}
-		case "nats:telemetry":
+		case shared.ScopeNATSTelemetryWrite:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
-			subAllow = append(subAllow, fmt.Sprintf("constellation.telemetry.%s.>", orgID))
-		case "nats:commands":
+		case shared.ScopeNATSCommandsRead:
 			subAllow = append(subAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:commands:write":
+		case shared.ScopeNATSCommandsWrite:
 			pubAllow = append(pubAllow, fmt.Sprintf("constellation.commands.%s.>", orgID))
-		case "nats:entities":
-			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+		case shared.ScopeNATSEntitiesRead:
 			subAllow = append(subAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
-		case "nats:events":
-			subAllow = append(subAllow, "constellation.events.>")
+		case shared.ScopeNATSEntitiesWrite:
+			pubAllow = append(pubAllow, fmt.Sprintf("constellation.entities.%s.>", orgID))
+		case shared.ScopeNATSEventsRead:
+			subAllow = append(subAllow, eventSubjectsForOrg(orgID)...)
+		case shared.ScopeNATSEventsWrite:
+			pubAllow = append(pubAllow, eventSubjectsForOrg(orgID)...)
 		}
 	}
 
@@ -802,7 +825,15 @@ func BuildNATSPermissions(scopes []string, orgID string) *server.Permissions {
 	}
 
 	return &server.Permissions{
-		Publish:   &server.SubjectPermission{Allow: append(baseAllow, pubAllow...)},
-		Subscribe: &server.SubjectPermission{Allow: append(baseAllow, subAllow...)},
+		Publish:   &server.SubjectPermission{Allow: pubAllow},
+		Subscribe: &server.SubjectPermission{Allow: append([]string{"_INBOX.>"}, subAllow...)},
+	}
+}
+
+// Spokes may publish only the canonical, organization-scoped detection family.
+// Registry lifecycle is Hub-authoritative and is never accepted from an edge.
+func eventSubjectsForOrg(orgID string) []string {
+	return []string{
+		fmt.Sprintf("constellation.events.isr.%s.*.detection.*", orgID),
 	}
 }

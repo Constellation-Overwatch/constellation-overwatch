@@ -3,11 +3,15 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/datastar"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
 	"github.com/nats-io/nats.go"
 )
 
@@ -27,10 +31,18 @@ func NewSSEHandler(nc *nats.Conn, js nats.JetStreamContext) *SSEHandler {
 
 // StreamMessages streams NATS messages to the client via SSE
 func (h *SSEHandler) StreamMessages(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := streamOrganizationScope(r)
+	if !ok {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
 	sse := datastar.NewSSE(w, r)
 
 	// Subscribe to all constellation subjects
 	sub, err := h.nc.Subscribe("constellation.>", func(msg *nats.Msg) {
+		if !subjectAllowedForOrganization(msg.Subject, orgID) {
+			return
+		}
 		// Try to parse as JSON for pretty formatting
 		var displayData string
 		var data interface{}
@@ -107,11 +119,21 @@ func renderStreamMessage(subject, timestamp, data string) string {
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, data)
+	`,
+		html.EscapeString(subject),
+		html.EscapeString(subject),
+		html.EscapeString(timestamp),
+		html.EscapeString(data),
+	)
 }
 
 // StreamMessagesWithFilter streams filtered NATS messages
 func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Request) {
+	orgID, ok := streamOrganizationScope(r)
+	if !ok {
+		http.Error(w, "Not Found", http.StatusNotFound)
+		return
+	}
 	// Get filter from query params
 	filter := r.URL.Query().Get("filter")
 	if filter == "" {
@@ -139,6 +161,9 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	var subs []*nats.Subscription
 	for _, subj := range subjects {
 		sub, err := h.nc.Subscribe(subj, func(msg *nats.Msg) {
+			if !subjectAllowedForOrganization(msg.Subject, orgID) {
+				return
+			}
 			// Try to parse as JSON for pretty formatting
 			var displayData string
 			var data interface{}
@@ -190,7 +215,7 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 	logger.Infow("SSE client connected with filter", "component", "SSE", "remote_addr", r.RemoteAddr, "filter", filter)
 
 	// Send initial connection message
-	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, filter)
+	initialHTML := fmt.Sprintf(`<div class="empty-state">Connected to stream (filter: %s). Waiting for messages...</div>`, html.EscapeString(filter))
 	sse.PatchElements(initialHTML,
 		datastar.WithSelector("#stream-messages"),
 		datastar.WithModeInner())
@@ -211,6 +236,40 @@ func (h *SSEHandler) StreamMessagesWithFilter(w http.ResponseWriter, r *http.Req
 				flusher.Flush()
 			}
 		}
+	}
+}
+
+func streamOrganizationScope(r *http.Request) (string, bool) {
+	role := middleware.UserRoleFromContext(r.Context())
+	if role == shared.RoleAdmin {
+		return "", true
+	}
+	if role != shared.RoleOperator && role != shared.RoleViewer {
+		return "", false
+	}
+	orgID := middleware.OrgIDFromContext(r.Context())
+	return orgID, orgID != ""
+}
+
+// subjectAllowedForOrganization recognizes the versioned Constellation
+// data-plane layouts. Events support both organization-first and the legacy
+// one-category prefix used by ISR detections; unknown layouts fail closed.
+func subjectAllowedForOrganization(subject, orgID string) bool {
+	if orgID == "" {
+		return true
+	}
+	parts := strings.Split(subject, ".")
+	if len(parts) < 3 || parts[0] != "constellation" {
+		return false
+	}
+
+	switch parts[1] {
+	case "entities", "telemetry", "commands":
+		return parts[2] == orgID
+	case "events":
+		return parts[2] == orgID || (len(parts) > 3 && parts[3] == orgID)
+	default:
+		return false
 	}
 }
 
@@ -260,5 +319,11 @@ func renderStreamMessageWithType(subject, timestamp, msgType, data string) strin
 				<div class="msg-data"><pre>%s</pre></div>
 			</div>
 		</div>
-	`, subject, subject, timestamp, msgType, data)
+	`,
+		html.EscapeString(subject),
+		html.EscapeString(subject),
+		html.EscapeString(timestamp),
+		html.EscapeString(msgType),
+		html.EscapeString(data),
+	)
 }

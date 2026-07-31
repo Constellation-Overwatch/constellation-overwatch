@@ -220,7 +220,7 @@ CREATE TABLE api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   key_prefix TEXT NOT NULL,
   name TEXT NOT NULL DEFAULT '',
-  scopes TEXT NOT NULL DEFAULT '[]',
+  scopes TEXT NOT NULL DEFAULT '',
   role TEXT NOT NULL DEFAULT 'operator',
   nats_pub_key TEXT,
   expires_at TEXT,
@@ -242,6 +242,7 @@ CREATE TABLE invites (
   role TEXT NOT NULL DEFAULT 'viewer' CHECK(role IN ('viewer', 'operator', 'commander', 'admin')),
   token_hash TEXT NOT NULL UNIQUE,
   invited_by_user_id TEXT NOT NULL,
+  purpose TEXT NOT NULL DEFAULT 'initial_setup' CHECK(purpose IN ('initial_setup', 'admin_recovery')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'expired', 'revoked')),
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -320,7 +321,7 @@ CREATE INDEX idx_audit_timestamp ON audit_log(timestamp DESC);
 
 -- WebAuthn Credentials
 CREATE INDEX idx_webauthn_creds_user ON webauthn_credentials(user_id);
-CREATE INDEX idx_webauthn_creds_cred_id ON webauthn_credentials(credential_id);
+CREATE UNIQUE INDEX idx_webauthn_creds_credential_id_unique ON webauthn_credentials(credential_id);
 
 -- WebAuthn Sessions (for cleanup)
 CREATE INDEX idx_webauthn_sessions_expires ON webauthn_sessions(expires_at);

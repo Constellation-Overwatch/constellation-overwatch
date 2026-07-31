@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
@@ -12,10 +11,10 @@ templ OrganizationsPage(organizations []ontology.Organization, selectedOrgID str
 	@layouts.Base("Organizations") {
 		@components.Navigation("entities") {
 			<div class="tab-content"
-				data-signals={ fmt.Sprintf(`{
-					selectedOrgID: '%s',
-					_orgFetching: false
-				}`, selectedOrgID) }>
+				data-signals={ templ.JSONString(map[string]any{
+					"selectedOrgID": selectedOrgID,
+					"_orgFetching": false,
+				}) }>
 				@org_components.OrganizationsPanel(organizations, selectedOrgID)
 			</div>
 		}

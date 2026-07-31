@@ -8,8 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,10 +19,9 @@ import (
 
 var apiKeyHMACWarnOnce sync.Once
 
-// hashAPIKey computes the HMAC-SHA256 hex digest when OVERWATCH_KEY_HASH_SECRET
-// is set, falling back to plain SHA-256 for development.
-func hashAPIKey(raw string) string {
-	secret := os.Getenv("OVERWATCH_KEY_HASH_SECRET")
+// hashAPIKey computes the HMAC-SHA256 hex digest when a validated secret is
+// supplied, falling back to plain SHA-256 only for development compatibility.
+func hashAPIKey(raw, secret string) string {
 	if secret == "" {
 		apiKeyHMACWarnOnce.Do(func() {
 			logger.Warn("OVERWATCH_KEY_HASH_SECRET not set, using insecure SHA-256 hash for API keys")
@@ -40,22 +37,32 @@ func hashAPIKey(raw string) string {
 // APIKeyService manages the lifecycle of API keys including creation,
 // revocation, validation, and usage tracking.
 type APIKeyService struct {
-	db *sql.DB
+	db            *sql.DB
+	keyHashSecret string
 }
 
-// NewAPIKeyService creates a new APIKeyService with the given database connection.
+// NewAPIKeyService creates a development-compatible APIKeyService. Production
+// startup must use NewAPIKeyServiceWithSecret with its validated snapshot.
 func NewAPIKeyService(db *sql.DB) *APIKeyService {
-	return &APIKeyService{db: db}
+	return NewAPIKeyServiceWithSecret(db, "")
+}
+
+// NewAPIKeyServiceWithSecret binds API-key hashing to the immutable startup
+// snapshot so creation cannot diverge from authentication if the environment
+// changes after validation.
+func NewAPIKeyServiceWithSecret(db *sql.DB, keyHashSecret string) *APIKeyService {
+	return &APIKeyService{db: db, keyHashSecret: keyHashSecret}
 }
 
 // CreatedKey is returned from CreateKey and contains the plaintext key (shown
 // once to the user), the database key ID, visible prefix, and NATS credentials.
 type CreatedKey struct {
-	APIKey     string `json:"api_key"`
-	KeyID      string `json:"key_id"`
-	Prefix     string `json:"prefix"`
-	NATSSeed   string `json:"nats_seed,omitempty"`
-	NATSPubKey string `json:"nats_pub_key,omitempty"`
+	APIKey     string   `json:"api_key"`
+	KeyID      string   `json:"key_id"`
+	Prefix     string   `json:"prefix"`
+	Scopes     []string `json:"scopes"`
+	NATSSeed   string   `json:"nats_seed,omitempty"`
+	NATSPubKey string   `json:"nats_pub_key,omitempty"`
 }
 
 // StoredKey represents a non-sensitive view of an API key record.
@@ -74,6 +81,12 @@ type StoredKey struct {
 // scopes are present, an NKey pair is generated and the public key is stored.
 // The plaintext API key and NATS seed are returned exactly once.
 func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, expiresAt *time.Time) (*CreatedKey, error) {
+	canonicalScopes, err := shared.NormalizeAPIKeyScopes(scopes)
+	if err != nil {
+		return nil, err
+	}
+	scopes = canonicalScopes
+
 	keyID := uuid.New().String()
 
 	// Generate 32 random bytes and hex-encode them.
@@ -85,9 +98,9 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 	plaintext := "c4_live_" + hex.EncodeToString(raw)
 	prefix := plaintext[:16] // "c4_live_" plus first 8 hex chars
 
-	keyHash := hashAPIKey(plaintext)
+	keyHash := hashAPIKey(plaintext, s.keyHashSecret)
 
-	scopesStr := strings.Join(scopes, ",")
+	scopesStr := shared.FormatStoredAPIKeyScopes(scopes)
 
 	var expiresAtStr sql.NullString
 	if expiresAt != nil {
@@ -116,7 +129,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 
 	now := time.Now().Format(time.RFC3339)
 
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		`INSERT INTO api_keys (key_id, user_id, org_id, name, key_hash, key_prefix, scopes, role, nats_pub_key, revoked, expires_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
 		keyID, userID, orgID, name, keyHash, prefix, scopesStr, "operator", natsPubKey, expiresAtStr, now,
@@ -129,6 +142,7 @@ func (s *APIKeyService) CreateKey(userID, orgID, name string, scopes []string, e
 		APIKey: plaintext,
 		KeyID:  keyID,
 		Prefix: prefix,
+		Scopes: scopes,
 	}
 	if natsSeed != "" {
 		result.NATSSeed = natsSeed
@@ -190,7 +204,7 @@ func (s *APIKeyService) ListKeys(orgID string) ([]StoredKey, error) {
 			return nil, fmt.Errorf("failed to scan API key row: %w", err)
 		}
 
-		k.Scopes = parseCSV(scopesStr)
+		k.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 		k.Revoked = revokedInt == 1
 		keys = append(keys, k)
 	}
@@ -226,7 +240,7 @@ func (s *APIKeyService) ListNKeyData() ([]NKeyData, error) {
 		if err := rows.Scan(&r.NATSPubKey, &scopesStr, &r.OrgID); err != nil {
 			return nil, fmt.Errorf("failed to scan NKey record: %w", err)
 		}
-		r.Scopes = parseCSV(scopesStr)
+		r.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 		records = append(records, r)
 	}
 	return records, nil
@@ -263,7 +277,7 @@ func (s *APIKeyService) ValidateKey(keyHash string) (*StoredKey, error) {
 		}
 	}
 
-	k.Scopes = parseCSV(scopesStr)
+	k.Scopes = shared.ParseStoredAPIKeyScopes(scopesStr)
 	k.Revoked = false
 
 	return &k, nil
@@ -282,24 +296,10 @@ func (s *APIKeyService) UpdateLastUsed(keyID string) error {
 	return nil
 }
 
-// parseCSV splits a comma-separated string into a trimmed string slice.
-func parseCSV(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var result []string
-	for _, part := range strings.Split(s, ",") {
-		if trimmed := strings.TrimSpace(part); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
 // hasNATSScopes returns true if any scope starts with "nats:".
 func hasNATSScopes(scopes []string) bool {
 	for _, s := range scopes {
-		if strings.HasPrefix(s, "nats:") {
+		if shared.IsNATSScope(s) {
 			return true
 		}
 	}

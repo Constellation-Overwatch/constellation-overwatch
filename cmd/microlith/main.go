@@ -23,11 +23,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -36,13 +38,13 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	svcmgr "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/workers"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/tui"
-	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/updater"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
@@ -88,6 +90,26 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// loadRuntimeEnv preserves .env convenience for local development while
+// preventing a production process from inheriting checkout-local settings.
+// Production configuration must come from the service supervisor.
+func loadRuntimeEnv(flagPath string) (string, error) {
+	envPath := findEnvFile(flagPath)
+	if envPath == "" {
+		return "", nil
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OVERWATCH_ENV")), runtimeconfig.ModeProduction) {
+		return "", fmt.Errorf("production forbids application .env files; configure the service supervisor and remove %s", envPath)
+	}
+	if err := godotenv.Load(envPath); err != nil {
+		return "", fmt.Errorf("load %s: %w", envPath, err)
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OVERWATCH_ENV")), runtimeconfig.ModeProduction) {
+		return "", fmt.Errorf("production mode must not be enabled by application .env file %s", envPath)
+	}
+	return envPath, nil
+}
+
 func main() {
 	// No subcommand or help flags → show splash + help
 	if len(os.Args) < 2 {
@@ -100,11 +122,6 @@ func main() {
 		cmdStart(os.Args[2:])
 	case "version", "--version", "-v":
 		fmt.Printf("overwatch %s (commit: %s, built: %s)\n", version, commit, date)
-	case "update":
-		if err := updater.Update(version, false); err != nil {
-			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
-			os.Exit(1)
-		}
 	case "help", "--help", "-h":
 		printHelp()
 	default:
@@ -121,7 +138,7 @@ func cmdStart(args []string) {
 	var (
 		tuiMode  = startFlags.Bool("tui", false, "Start with TUI dashboard instead of headless mode")
 		port     = startFlags.String("port", "", "Web UI and API port (default: 8080)")
-		host     = startFlags.String("host", "", "Bind address (default: 0.0.0.0)")
+		host     = startFlags.String("host", "", "Bind address (default: 127.0.0.1)")
 		natsPort = startFlags.String("nats-port", "", "NATS server port (default: 4222)")
 		dataDir  = startFlags.String("data-dir", "", "Data directory (default: ./data)")
 		envFile  = startFlags.String("env", ".env", "Path to .env file")
@@ -129,18 +146,29 @@ func cmdStart(args []string) {
 	startFlags.Parse(args)
 
 	// Load .env file (flags override env vars)
-	if envPath := findEnvFile(*envFile); envPath != "" {
-		if err := godotenv.Load(envPath); err != nil {
-			logger.Warnw("Failed to load config", "path", envPath, "error", err)
-		} else {
-			logger.Infow("Loaded config", "path", envPath)
-		}
+	if envPath, err := loadRuntimeEnv(*envFile); err != nil {
+		logger.Fatalw("Refusing to load configuration", "error", err)
+	} else if envPath != "" {
+		logger.Infow("Loaded development config", "path", envPath)
 	} else {
 		logger.Info("No .env found, using environment variables and flags")
 	}
 
 	// Apply CLI flag overrides to environment (flags take precedence)
 	applyFlagOverrides(*port, *host, *natsPort, *dataDir)
+
+	runtimeCfg, err := loadRuntimeConfig()
+	if err != nil {
+		logger.Fatalw("Refusing to start with invalid configuration", "error", err)
+	}
+	if err := prepareRuntimePaths(runtimeCfg); err != nil {
+		logger.Fatalw("Refusing to start because runtime paths are not ready", "error", err)
+	}
+	if runtimeCfg.Production() {
+		logger.Infow("Validated production deployment profile", "base_url", runtimeCfg.BaseURL, "host", runtimeCfg.Host, "port", runtimeCfg.Port)
+	} else {
+		logger.Warn("Running in development mode; do not expose this profile to a network")
+	}
 
 	// Initialize logger (handled by init() in logger package)
 	defer logger.Sync()
@@ -213,15 +241,22 @@ func cmdStart(args []string) {
 	}
 
 	// 4. Bootstrap admin user if none exist
-	bootstrapAdmin(dbService)
+	if err := bootstrapAdmin(dbService, runtimeCfg); err != nil {
+		logger.Fatalw("Failed to prepare bootstrap administrator", "error", err)
+	}
 
 	// 5. Initialize API Router
 	logger.Info("Initializing API router...")
-	apiHandler := api.NewRouter(dbService.GetDB(), natsService)
+	apiHandler := api.NewRouterWithRuntimeSecurity(
+		dbService.GetDB(),
+		natsService,
+		runtimeCfg.AllowedOrigins,
+		runtimeCfg.KeyHashSecret,
+	)
 
 	// 6. Initialize Web Server
 	logger.Info("Initializing web server...")
-	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler)
+	webServer, err := web.NewWebService(dbService, nc, natsService, apiHandler, runtimeCfg)
 	if err != nil {
 		logger.Fatalw("Failed to initialize web server", "error", err)
 	}
@@ -347,8 +382,7 @@ Usage:
 Commands:
   start          Start the server (headless or TUI)
   version        Print version and exit
-  update         Download and install the latest version
-  help           Show this help message
+	  help           Show this help message
 
 Quick Start:
   overwatch start              Start in headless mode
@@ -367,7 +401,7 @@ Usage:
 Options:
   --tui                Start with TUI dashboard (interactive terminal UI)
   --port <PORT>        HTTP server port for Web UI and REST API (default: 8080)
-  --host <HOST>        Network bind address (default: 0.0.0.0)
+  --host <HOST>        Network bind address (default: 127.0.0.1)
   --nats-port <PORT>   NATS TCP port for edge device connections (default: 4222)
   --data-dir <PATH>    Data directory for database and NATS storage (default: ./data)
   --env <PATH>         Path to .env configuration file (default: .env)
@@ -393,76 +427,130 @@ Endpoints:
   Health      http://localhost:8080/health`)
 }
 
-// bootstrapAdmin ensures at least one admin user exists for first-time setup.
-// If no users exist, it creates the default org, a bootstrap admin, and a
-// one-time invite token. The invite URL is printed to the console; there is no
-// zero-credential login path.
-func bootstrapAdmin(dbService *db.Service) {
+// bootstrapAdmin ensures an incomplete first-run administrator always has one
+// current invitation. Production setup material is written only to an
+// explicitly configured, create-once file and never to normal logs.
+func bootstrapAdmin(dbService *db.Service, cfg runtimeconfig.Runtime) error {
 	database := dbService.GetDB()
 
 	var count int
 	if err := database.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
-		logger.Warnw("Failed to check user count for bootstrap", "error", err)
-		return
-	}
-	if count > 0 {
-		return
+		return fmt.Errorf("check user count: %w", err)
 	}
 
-	logger.Info("No users found, bootstrapping default organization and admin user...")
+	adminEmail := cfg.AdminEmail
+	adminUserID := ""
+	if count == 0 {
+		logger.Info("No users found, bootstrapping default organization and admin user...")
+		if _, err := database.Exec(
+			`INSERT OR IGNORE INTO organizations (org_id, name, org_type, description) VALUES (?, ?, ?, ?)`,
+			"default", "Default Organization", "commercial", "Auto-created default organization",
+		); err != nil {
+			return fmt.Errorf("create default organization: %w", err)
+		}
 
-	// Ensure the default organization exists
-	_, err := database.Exec(
-		`INSERT OR IGNORE INTO organizations (org_id, name, org_type, description) VALUES (?, ?, ?, ?)`,
-		"default", "Default Organization", "commercial", "Auto-created default organization",
-	)
-	if err != nil {
-		logger.Errorw("Failed to create default organization", "error", err)
-		return
+		userSvc := services.NewUserService(database)
+		admin := &services.User{
+			OrgID:             "default",
+			Username:          adminEmail,
+			Email:             adminEmail,
+			Role:              "admin",
+			NeedsPasskeySetup: true,
+		}
+		if err := userSvc.CreateUser(admin); err != nil {
+			return fmt.Errorf("create bootstrap admin: %w", err)
+		}
+		adminUserID = admin.UserID
+	} else {
+		err := database.QueryRow(
+			`SELECT user_id, email FROM users
+			 WHERE org_id = ? AND role = 'admin' AND needs_passkey_setup = 1
+			 ORDER BY created_at LIMIT 1`,
+			"default",
+		).Scan(&adminUserID, &adminEmail)
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("find incomplete bootstrap admin: %w", err)
+		}
+	}
+	if cfg.Production() {
+		exists, err := secureBootstrapFileExists(cfg.BootstrapFile)
+		if err != nil {
+			return err
+		}
+		if exists {
+			logger.Infow("Incomplete bootstrap admin still has secure setup material", "email", adminEmail, "path", cfg.BootstrapFile)
+			return nil
+		}
 	}
 
-	// Read admin email from env var, fallback to admin@localhost
-	adminEmail := os.Getenv("OVERWATCH_ADMIN_EMAIL")
-	if adminEmail == "" {
-		adminEmail = "admin@localhost"
-	}
-
-	userSvc := services.NewUserService(database)
-	admin := &services.User{
-		OrgID:             "default",
-		Username:          adminEmail, // email IS the identity
-		Email:             adminEmail,
-		Role:              "admin",
-		NeedsPasskeySetup: true,
-	}
-
-	if err := userSvc.CreateUser(admin); err != nil {
-		logger.Errorw("Failed to create bootstrap admin", "error", err)
-		return
-	}
-
-	// Generate a one-time invite so the admin can set up their passkey.
 	inviteSvc := services.NewInviteService(database)
-	_, plainToken, err := inviteSvc.CreateInvite("default", adminEmail, "admin", admin.UserID)
+	if _, err := inviteSvc.RevokePendingInvitesByIssuer(adminUserID); err != nil {
+		return fmt.Errorf("revoke stale bootstrap invites: %w", err)
+	}
+
+	_, plainToken, err := inviteSvc.CreateInitialSetupInvite("default", adminEmail, "admin", adminUserID)
 	if err != nil {
-		logger.Errorw("Failed to create bootstrap invite", "error", err)
-		return
+		return fmt.Errorf("create bootstrap invite: %w", err)
+	}
+	setupURL := strings.TrimRight(cfg.BaseURL, "/") + "/invite/" + plainToken
+
+	if cfg.Production() {
+		if err := writeBootstrapFile(cfg.BootstrapFile, adminEmail, setupURL); err != nil {
+			return err
+		}
+		logger.Infow("Bootstrap admin prepared; setup material written to secure file", "email", adminEmail, "path", cfg.BootstrapFile)
+		return nil
 	}
 
-	// Print setup instructions to console
-	host := os.Getenv("HOST")
-	if host == "" || host == "0.0.0.0" {
-		host = "localhost"
-	}
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	logger.Infow("Development bootstrap admin created", "email", adminEmail, "user_id", adminUserID)
+	fmt.Printf("\n  Admin account created for: %s\n", adminEmail)
+	fmt.Printf("  Complete development setup at: %s\n\n", setupURL)
+	return nil
+}
 
-	logger.Infow("Bootstrap admin created",
-		"email", admin.Email, "user_id", admin.UserID)
-	fmt.Printf("\n  ✦ Admin account created for: %s\n", admin.Email)
-	fmt.Printf("  ✦ Complete setup at: http://%s:%s/invite/%s\n\n", host, port, plainToken)
+func writeBootstrapFile(path, email, setupURL string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create secure bootstrap file %s: %w", path, err)
+	}
+	removeOnFailure := true
+	defer func() {
+		_ = file.Close()
+		if removeOnFailure {
+			_ = os.Remove(path)
+		}
+	}()
+	if err := file.Chmod(0o600); err != nil {
+		return fmt.Errorf("restrict bootstrap file permissions: %w", err)
+	}
+	if _, err := fmt.Fprintf(file, "admin_email=%s\nsetup_url=%s\n", email, setupURL); err != nil {
+		return fmt.Errorf("write bootstrap file: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync bootstrap file: %w", err)
+	}
+	removeOnFailure = false
+	return nil
+}
+
+func secureBootstrapFileExists(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect bootstrap file: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("bootstrap path must be a regular non-symlink file")
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		return false, fmt.Errorf("bootstrap file permissions %o expose setup material; require 0600", info.Mode().Perm())
+	}
+	return true, nil
 }
 
 func applyFlagOverrides(port, host, natsPort, dataDir string) {

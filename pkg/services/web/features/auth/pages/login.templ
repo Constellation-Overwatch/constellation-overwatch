@@ -27,7 +27,7 @@ templ LoginPage(errorMsg string) {
 						<div class="login-error">{ errorMsg }</div>
 					}
 					<div id="status-message" class="login-status hidden"></div>
-					<form id="login-form" class="login-form" onsubmit="return handleLoginNext(event)">
+					<form id="login-form" class="login-form">
 						<div class="input-group">
 							<svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
 								<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
@@ -51,7 +51,7 @@ templ LoginPage(errorMsg string) {
 					</form>
 				</div>
 			</div>
-			<script src="/static/js/passkey.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } src="/static/js/passkey.js"></script>
 		</body>
 	</html>
 }
@@ -82,12 +82,12 @@ templ SetupPasskeyPage() {
 					<h2 class="invite-heading">Setup Passkey</h2>
 					<div class="subtitle" style="margin-bottom: 16px;">Register a passkey to secure your account.</div>
 					<div id="status-message" class="login-status hidden"></div>
-					<button type="button" class="login-btn" id="setup-passkey-btn" onclick="beginSetupPasskey()">
+					<button type="button" class="login-btn" id="setup-passkey-btn">
 						Register Passkey
 					</button>
 				</div>
 			</div>
-			<script src="/static/js/passkey.js"></script>
+			<script nonce={ templ.GetNonce(ctx) } src="/static/js/passkey.js"></script>
 		</body>
 	</html>
 }

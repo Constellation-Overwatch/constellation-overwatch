@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/shared"
@@ -20,8 +22,10 @@ var schemaFS embed.FS
 
 // Service represents the database service with connection management
 type Service struct {
-	DB     *sql.DB
-	DBPath string
+	DB           *sql.DB
+	DBPath       string
+	migrationMu  sync.RWMutex
+	migrationErr error
 }
 
 // Config holds database configuration
@@ -120,7 +124,18 @@ func (s *Service) Start(ctx context.Context) error {
 
 	// Apply incremental migrations for existing databases
 	if err := s.MigrateSchema(); err != nil {
-		logger.Warnw("Schema migration encountered issues", "error", err)
+		// Keep existing authentication and read paths available. Security-
+		// sensitive writers verify their required indexes independently and
+		// fail closed until the migration is reconciled. Health also reports
+		// degraded so a dead recovery surface cannot hide behind a green node.
+		s.migrationMu.Lock()
+		s.migrationErr = err
+		s.migrationMu.Unlock()
+		logger.Errorw("Schema migration blocked; affected writes remain disabled", "error", err)
+	} else {
+		s.migrationMu.Lock()
+		s.migrationErr = nil
+		s.migrationMu.Unlock()
 	}
 
 	return nil
@@ -315,6 +330,12 @@ func (s *Service) Health() error {
 	if s.DB == nil {
 		return fmt.Errorf("database connection is nil")
 	}
+	s.migrationMu.RLock()
+	migrationErr := s.migrationErr
+	s.migrationMu.RUnlock()
+	if migrationErr != nil {
+		return fmt.Errorf("schema migration incomplete: %w", migrationErr)
+	}
 	return s.DB.Ping()
 }
 
@@ -358,10 +379,161 @@ func (s *Service) MigrateSchema() error {
 	// random session keys that store the user reference alongside the session).
 	if !s.columnExists("webauthn_sessions", "user_ref") {
 		if _, err := s.DB.Exec(`ALTER TABLE webauthn_sessions ADD COLUMN user_ref TEXT DEFAULT ''`); err != nil {
-			logger.Warnw("Failed to add user_ref column to webauthn_sessions", "error", err)
+			return fmt.Errorf("failed to add webauthn session user reference: %w", err)
 		} else {
 			logger.Info("Added user_ref column to webauthn_sessions")
 		}
+	}
+
+	// Persist why an invite can create an enrollment-only session. Existing
+	// rows predate explicit purposes and remain initial_setup; all new
+	// existing-account grants are written as admin_recovery.
+	if !s.columnExists("invites", "purpose") {
+		if _, err := s.DB.Exec(
+			`ALTER TABLE invites ADD COLUMN purpose TEXT NOT NULL DEFAULT 'initial_setup'
+			 CHECK(purpose IN ('initial_setup', 'admin_recovery'))`,
+		); err != nil {
+			return fmt.Errorf("failed to add invite purpose: %w", err)
+		}
+		logger.Info("Added purpose column to invites")
+	}
+
+	if err := s.migrateAPIKeyScopeAliases(); err != nil {
+		return err
+	}
+
+	if err := s.ensureUniqueWebAuthnCredentialIDs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateAPIKeyScopeAliases replaces only aliases with an explicit canonical
+// mapping. Unknown values are retained so migration cannot guess at a
+// permission and accidentally widen an existing credential.
+func (s *Service) migrateAPIKeyScopeAliases() error {
+	if !s.tableExists("api_keys") {
+		return nil
+	}
+
+	rows, err := s.DB.Query(`SELECT key_id, scopes FROM api_keys`)
+	if err != nil {
+		return fmt.Errorf("failed to inspect API key scopes: %w", err)
+	}
+
+	type storedKeyScopes struct {
+		keyID   string
+		current string
+		next    string
+		unknown int
+	}
+	var records []storedKeyScopes
+	for rows.Next() {
+		var record storedKeyScopes
+		if err := rows.Scan(&record.keyID, &record.current); err != nil {
+			scanErr := fmt.Errorf("failed to scan API key scopes: %w", err)
+			if closeErr := rows.Close(); closeErr != nil {
+				return errors.Join(scanErr, fmt.Errorf("failed to close API key scope rows: %w", closeErr))
+			}
+			return scanErr
+		}
+		normalized, unknown := shared.MigrateStoredAPIKeyScopes(
+			shared.ParseStoredAPIKeyScopes(record.current),
+		)
+		record.next = shared.FormatStoredAPIKeyScopes(normalized)
+		record.unknown = len(unknown)
+		records = append(records, record)
+	}
+	iterationErr := rows.Err()
+	closeErr := rows.Close()
+	var readErr error
+	if iterationErr != nil {
+		readErr = fmt.Errorf("failed to iterate API key scopes: %w", iterationErr)
+	}
+	if closeErr != nil {
+		readErr = errors.Join(readErr, fmt.Errorf("failed to close API key scope rows: %w", closeErr))
+	}
+	if readErr != nil {
+		return readErr
+	}
+
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin API key scope migration: %w", err)
+	}
+
+	var migrated, unknown int
+	for _, record := range records {
+		unknown += record.unknown
+		if record.current == record.next {
+			continue
+		}
+		if _, err := tx.Exec(
+			`UPDATE api_keys SET scopes = ? WHERE key_id = ?`,
+			record.next,
+			record.keyID,
+		); err != nil {
+			migrateErr := fmt.Errorf("failed to migrate API key scopes: %w", err)
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return errors.Join(migrateErr, fmt.Errorf("failed to roll back API key scope migration: %w", rollbackErr))
+			}
+			return migrateErr
+		}
+		migrated++
+	}
+	if err := tx.Commit(); err != nil {
+		commitErr := fmt.Errorf("failed to commit API key scope migration: %w", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			return errors.Join(commitErr, fmt.Errorf("failed to roll back API key scope migration: %w", rollbackErr))
+		}
+		return commitErr
+	}
+
+	if migrated > 0 {
+		logger.Infow("Migrated deprecated API key scope aliases", "keys", migrated)
+	}
+	if unknown > 0 {
+		logger.Warnw(
+			"Stored API keys contain unknown scopes; values were preserved without granting new permissions",
+			"scope_entries",
+			unknown,
+		)
+	}
+	return nil
+}
+
+// ensureUniqueWebAuthnCredentialIDs makes the credential ID a database-level
+// invariant. Duplicate rows are not deleted automatically because choosing a
+// winner could transfer a credential between users or discard a newer
+// authenticator state. Startup fails cleanly until an operator reconciles them.
+func (s *Service) ensureUniqueWebAuthnCredentialIDs() error {
+	var duplicateGroups int
+	err := s.DB.QueryRow(`
+		SELECT COUNT(*)
+		FROM (
+			SELECT credential_id
+			FROM webauthn_credentials
+			GROUP BY credential_id
+			HAVING COUNT(*) > 1
+		)`,
+	).Scan(&duplicateGroups)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to inspect WebAuthn credential IDs: %w", err)
+	}
+	if duplicateGroups > 0 {
+		return fmt.Errorf("cannot enforce unique WebAuthn credential IDs: %d duplicate credential ID group(s) require operator reconciliation", duplicateGroups)
+	}
+
+	if _, err := s.DB.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_webauthn_creds_credential_id_unique
+		ON webauthn_credentials(credential_id)`); err != nil {
+		return fmt.Errorf("failed to create unique WebAuthn credential ID index: %w", err)
+	}
+
+	// The former non-unique index is redundant once the unique index exists.
+	if _, err := s.DB.Exec(`DROP INDEX IF EXISTS idx_webauthn_creds_cred_id`); err != nil {
+		return fmt.Errorf("failed to remove legacy WebAuthn credential ID index: %w", err)
 	}
 
 	return nil
@@ -379,6 +551,15 @@ func (s *Service) columnExists(table, column string) bool {
 		return false
 	}
 	return count > 0
+}
+
+func (s *Service) tableExists(table string) bool {
+	var count int
+	err := s.DB.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		table,
+	).Scan(&count)
+	return err == nil && count > 0
 }
 
 // GetSchemaVersion returns the current schema version

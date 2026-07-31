@@ -37,7 +37,22 @@ func NewDatastarHandler(orgSvc *services.OrganizationService, entitySvc *service
 // Organization Handlers
 
 func (h *DatastarHandler) HandleListOrganizations(w http.ResponseWriter, r *http.Request) {
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -338,10 +353,13 @@ func (h *DatastarHandler) HandleOrganizationCancel(w http.ResponseWriter, r *htt
 // Entity Handlers
 
 func (h *DatastarHandler) HandleListEntities(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
 	var entities []ontology.Entity
-	var err error
 
 	if orgID != "" {
 		// If org_id is provided, filter by that org
@@ -377,7 +395,11 @@ func (h *DatastarHandler) HandleListEntities(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Request) {
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 	if orgID == "" {
 		http.Error(w, "org_id required for creating entities", http.StatusBadRequest)
 		return
@@ -487,7 +509,11 @@ func (h *DatastarHandler) HandleCreateEntity(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entity_id")
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
 	if orgID == "" || entityID == "" {
 		http.Error(w, "org_id and entity_id required", http.StatusBadRequest)
@@ -591,14 +617,18 @@ func (h *DatastarHandler) HandleUpdateEntity(w http.ResponseWriter, r *http.Requ
 
 func (h *DatastarHandler) HandleDeleteEntity(w http.ResponseWriter, r *http.Request) {
 	entityID := chi.URLParam(r, "entity_id")
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
 	if orgID == "" || entityID == "" {
 		http.Error(w, "org_id and entity_id required", http.StatusBadRequest)
 		return
 	}
 
-	err := h.entitySvc.DeleteEntity(orgID, entityID)
+	err = h.entitySvc.DeleteEntity(orgID, entityID)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -621,15 +651,34 @@ func (h *DatastarHandler) HandleDeleteEntity(w http.ResponseWriter, r *http.Requ
 // Fleet Handlers
 
 func (h *DatastarHandler) HandleListFleet(w http.ResponseWriter, r *http.Request) {
-	// Fetch all entities
-	entities, err := h.entitySvc.ListAllEntities()
+	orgID, err := authorizedOrganizationID(r, "")
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var entities []ontology.Entity
+	if orgID == "" {
+		entities, err = h.entitySvc.ListAllEntities()
+	} else {
+		entities, err = h.entitySvc.ListEntities(orgID)
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	// Fetch all organizations for rendering
-	orgs, err := h.orgSvc.ListOrganizations()
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -668,7 +717,11 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 	}
 
 	// Get org_id from form
-	orgID := r.FormValue("org_id")
+	orgID, err := authorizedOrganizationID(r, r.FormValue("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 	if orgID == "" {
 		http.Error(w, "org_id required", http.StatusBadRequest)
 		return
@@ -728,7 +781,7 @@ func (h *DatastarHandler) HandleCreateFleetEntity(w http.ResponseWriter, r *http
 	logger.Infof("[FLEET-API] Entity created: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for rendering the row
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForRequest(r, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -775,8 +828,17 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 		orgID = oid
 	}
 
-	if entityID == "" || orgID == "" {
-		http.Error(w, "Entity ID and Organization ID required", http.StatusBadRequest)
+	if entityID == "" {
+		http.Error(w, "Entity ID required", http.StatusBadRequest)
+		return
+	}
+	orgID, err := authorizedOrganizationID(r, orgID)
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+	if orgID == "" {
+		http.Error(w, "Organization ID required", http.StatusBadRequest)
 		return
 	}
 
@@ -817,7 +879,7 @@ func (h *DatastarHandler) HandleUpdateFleetEntity(w http.ResponseWriter, r *http
 	logger.Infof("[FLEET-API] Entity updated: %s (ID: %s)", entity.EntityType, entity.EntityID)
 
 	// Fetch all organizations for the dropdown in the returned row
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgs, err := organizationsForRequest(r, h.orgSvc)
 	if err != nil {
 		logger.Infof("[FLEET-API] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -843,7 +905,11 @@ func (h *DatastarHandler) HandleDeleteFleetEntity(w http.ResponseWriter, r *http
 	}
 
 	// Get org_id from query
-	orgID := r.URL.Query().Get("org_id")
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
 
 	logger.Infof("[FLEET-API] DELETE /api/fleet/%s?org_id=%s", entityID, orgID)
 
@@ -901,8 +967,22 @@ func (h *DatastarHandler) HandleFleetEdit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		logger.Infof("[FLEET-EDIT] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -943,8 +1023,22 @@ func (h *DatastarHandler) HandleFleetCancel(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Fetch all organizations for the dropdown
-	orgs, err := h.orgSvc.ListOrganizations()
+	orgID, err := authorizedOrganizationID(r, r.URL.Query().Get("org_id"))
+	if err != nil {
+		writeResourceNotFound(w)
+		return
+	}
+
+	var orgs []ontology.Organization
+	if orgID == "" {
+		orgs, err = h.orgSvc.ListOrganizations()
+	} else {
+		org, getErr := h.orgSvc.GetOrganization(orgID)
+		err = getErr
+		if getErr == nil {
+			orgs = []ontology.Organization{*org}
+		}
+	}
 	if err != nil {
 		logger.Infof("[FLEET-CANCEL] Error fetching organizations: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -1000,6 +1094,9 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 		if entityID == "" || orgID == "" {
 			return
 		}
+		if !organizationEventAllowed(r, orgID) {
+			return
+		}
 
 		switch event.Type {
 		case shared.EventTypeCreated, shared.EventTypeUpdated:
@@ -1008,7 +1105,7 @@ func (h *DatastarHandler) HandleFleetSSE(w http.ResponseWriter, r *http.Request)
 				logger.Errorw("Failed to fetch entity for fleet SSE", "entity_id", entityID, "error", err)
 				return
 			}
-			orgs, err := h.orgSvc.ListOrganizations()
+			orgs, err := organizationsForRequest(r, h.orgSvc)
 			if err != nil {
 				logger.Errorw("Failed to fetch orgs for fleet SSE", "error", err)
 				return
@@ -1081,6 +1178,9 @@ func (h *DatastarHandler) HandleOrganizationsSSE(w http.ResponseWriter, r *http.
 
 		orgID, _ := event.Data["org_id"].(string)
 		if orgID == "" {
+			return
+		}
+		if !organizationEventAllowed(r, orgID) {
 			return
 		}
 

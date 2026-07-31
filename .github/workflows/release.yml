@@ -2,59 +2,104 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      existing_tag:
+        description: Existing locally published release tag to verify and attest
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  # Job 1: Bump version and create tag
-  tag:
-    name: Bump Version
-    runs-on: ubuntu-latest
-    outputs:
-      new_tag: ${{ steps.tag_version.outputs.new_tag }}
-      new_version: ${{ steps.tag_version.outputs.new_version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Bump version and push tag
-        id: tag_version
-        uses: anothrNick/github-tag-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEFAULT_BUMP: patch
-          WITH_V: true
-          INITIAL_VERSION: 0.1.0
-          TAG_CONTEXT: repo
-
-  # Job 2: Build and release binaries
   release:
+    if: github.event_name == 'push'
     name: GoReleaser
-    needs: tag
-    if: needs.tag.outputs.new_tag != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           fetch-depth: 0
-          ref: ${{ needs.tag.outputs.new_tag }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: stable
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify source
+        run: |
+          go mod verify
+          go tool templ generate -check
+          test -z "$(git ls-files '*.go' | xargs gofmt -l)"
+          go test ./...
+          go test -race -count=1 ./...
+          go vet ./...
+          ./packaging/test-linux-maintenance.sh
+          ./packaging/test-linux-install.sh
+
+      - name: Install Syft for archive SBOMs
+        uses: anchore/sbom-action/download-syft@f8bdd1d8ac5e901a77a92f111440fdb1b593736b # v0.20.6
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: "v2.17.0"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest published archives, checksums, and SBOMs
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*_checksums.txt
+            dist/*.sbom.json
+
+  attest-existing-release:
+    if: github.event_name == 'workflow_dispatch'
+    name: Attest existing release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ inputs.existing_tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download published release assets
+        run: |
+          test -n "$RELEASE_TAG"
+          mkdir dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir dist
+
+      - name: Verify release inventory and checksums
+        run: |
+          test "$(find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 6
+          test "$(find dist -maxdepth 1 -type f -name '*.sbom.json' | wc -l)" -eq 6
+          test "$(find dist -maxdepth 1 -type f -name '*_checksums.txt' | wc -l)" -eq 1
+          checksums="$(find dist -maxdepth 1 -type f -name '*_checksums.txt')"
+          (cd dist && sha256sum --check "$(basename "$checksums")")
+
+      - name: Attest published archives, checksums, and SBOMs
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*_checksums.txt
+            dist/*.sbom.json

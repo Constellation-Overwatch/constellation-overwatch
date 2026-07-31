@@ -193,27 +193,27 @@ func OrganizationRow(org ontology.Organization, selectedOrgID string) templ.Comp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\">Edit</button> <button class=\"action-btn small\" data-org-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\">Edit</button> <button class=\"action-btn small\" data-copy-value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(org.OrgID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 92, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 92, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" onclick=\"(function(btn, text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(function() { var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); }); } else { var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = orig; }, 1500); } catch(e) { alert('Copy failed. Please use HTTPS.'); } document.body.removeChild(ta); } })(this, this.dataset.orgId)\" title=\"Copy org_id for fleet device registration\">Copy</button> <button class=\"action-btn small danger\" data-on:click=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" title=\"Copy org_id for fleet device registration\">Copy</button> <button class=\"action-btn small danger\" data-on:click=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("if (confirm('Are you sure you want to delete this organization? This action cannot be undone.')) @delete('/api/organizations/%s')", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 98, Col: 175}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 97, Col: 175}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("org-row-%s", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 106, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 105, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -266,14 +266,14 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{
-			org_id: '%s',
-			edit_name: '%s',
-			edit_org_type: '%s',
-			edit_description: '%s'
-		}`, org.OrgID, org.Name, org.OrgType, org.Description))
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.JSONString(map[string]any{
+			"org_id":           org.OrgID,
+			"edit_name":        org.Name,
+			"edit_org_type":    org.OrgType,
+			"edit_description": org.Description,
+		}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 112, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 111, Col: 4}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -286,7 +286,7 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("@get('/organizations/cancel/%s')", org.OrgID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 142, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 141, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {

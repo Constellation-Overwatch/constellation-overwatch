@@ -10,6 +10,7 @@ import (
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/middleware"
 	"github.com/Constellation-Overwatch/constellation-overwatch/api/services"
 	"github.com/Constellation-Overwatch/constellation-overwatch/db"
+	runtimeconfig "github.com/Constellation-Overwatch/constellation-overwatch/pkg/config"
 	embeddednats "github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/embedded-nats"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/logger"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/mediamtx"
@@ -31,10 +32,11 @@ type Server struct {
 	mux          chi.Router
 	server       *http.Server
 	bindAddr     string
+	runtimeCfg   runtimeconfig.Runtime
 }
 
 // NewServer creates a new web server instance
-func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler) (*Server, error) {
+func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler, runtimeCfg runtimeconfig.Runtime) (*Server, error) {
 	// Create MediaMTX client (nil if MEDIAMTX_API_URL is not set)
 	mtxClient := mediamtx.New(mediamtx.DefaultConfig())
 
@@ -47,24 +49,25 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 		entitySvc:    services.NewEntityService(dbService.GetDB(), natsEmbedded),
 		sseHandler:   NewSSEHandler(natsEmbedded.Connection(), natsEmbedded.JetStream()),
 		mtxClient:    mtxClient,
+		runtimeCfg:   runtimeCfg,
 	}
 
 	database := dbService.GetDB()
 
 	// Initialize session auth (backed by SQLite for restart persistence)
-	sessionAuth := middleware.NewSessionAuth(database)
+	sessionAuth := middleware.NewSessionAuthWithCookieSecurity(database, runtimeCfg.SecureCookies)
 
 	// Initialize WebAuthn relying party
-	wa, err := services.NewWebAuthn()
+	wa, err := services.NewWebAuthnWithOrigins(runtimeCfg.RPID, []string{runtimeCfg.BaseURL})
 	if err != nil {
-		logger.Warnw("WebAuthn initialization failed, passkey auth disabled", "error", err)
+		return nil, fmt.Errorf("initialize WebAuthn: %w", err)
 	}
 
 	// Initialize services
 	authSvc := services.NewAuthService(database, wa)
 	userSvc := services.NewUserService(database)
 	inviteSvc := services.NewInviteService(database)
-	apiKeySvc := services.NewAPIKeyService(database)
+	apiKeySvc := services.NewAPIKeyServiceWithSecret(database, runtimeCfg.KeyHashSecret)
 
 	// Restore NATS NKey users from API keys on startup.
 	if nkeyData, err := apiKeySvc.ListNKeyData(); err == nil && len(nkeyData) > 0 {
@@ -85,23 +88,19 @@ func NewServer(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.
 	s.mux = NewRouter(
 		s.orgSvc, s.entitySvc, s.natsEmbedded, s.sseHandler,
 		s.mtxClient, s.apiHandler, sessionAuth,
-		authSvc, userSvc, inviteSvc, apiKeySvc,
+		authSvc, userSvc, inviteSvc, apiKeySvc, runtimeCfg,
 	)
+	s.bindAddr = net.JoinHostPort(runtimeCfg.Host, runtimeCfg.Port)
 
 	return s, nil
 }
 
 // NewWebService creates a new web service with environment-based configuration
-func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler) (*Server, error) {
-	server, err := NewServer(dbService, nc, natsEmbedded, apiHandler)
+func NewWebService(dbService *db.Service, nc *nats.Conn, natsEmbedded *embeddednats.EmbeddedNATS, apiHandler http.Handler, runtimeCfg runtimeconfig.Runtime) (*Server, error) {
+	server, err := NewServer(dbService, nc, natsEmbedded, apiHandler, runtimeCfg)
 	if err != nil {
 		return nil, err
 	}
-
-	// Configure bind address from environment
-	host := shared.GetEnv("HOST", "0.0.0.0")
-	port := shared.GetEnv("PORT", "8080")
-	server.bindAddr = fmt.Sprintf("%s:%s", host, port)
 
 	return server, nil
 }
@@ -121,7 +120,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	s.server = &http.Server{
 		Addr:              s.bindAddr,
-		Handler:           RecoverPanic(SecurityHeaders(MaxBodySize(1 << 20)(s.mux))),
+		Handler:           RecoverPanic(SecurityHeadersForConfig(s.runtimeCfg)(MaxBodySize(1 << 20)(s.mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      0, // Disabled — SSE endpoints are long-lived

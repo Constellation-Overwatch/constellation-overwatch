@@ -26,11 +26,18 @@ const (
 	// Event subjects
 	SubjectEvents    = "constellation.events"
 	SubjectEventsAll = "constellation.events.>"
+	// SubjectDetectionsAll is the only spoke-authored event family consumed by
+	// the Hub. Lifecycle and registry state remain Hub-authoritative.
+	SubjectDetectionsAll = "constellation.events.isr.*.*.detection.*"
 
 	// Telemetry subjects
 	SubjectTelemetry       = "constellation.telemetry"
 	SubjectTelemetryAll    = "constellation.telemetry.>"
 	SubjectTelemetryEntity = "constellation.telemetry.%s.%s" // org_id, entity_id
+
+	// Quarantine subjects are Hub-internal poison-message records.
+	SubjectQuarantine    = "constellation.quarantine"
+	SubjectQuarantineAll = "constellation.quarantine.>"
 
 	// Command subjects
 	SubjectCommands         = "constellation.commands"
@@ -46,10 +53,11 @@ const (
 
 // Stream names
 const (
-	StreamEntities  = "CONSTELLATION_ENTITIES"
-	StreamEvents    = "CONSTELLATION_EVENTS"
-	StreamTelemetry = "CONSTELLATION_TELEMETRY"
-	StreamCommands  = "CONSTELLATION_COMMANDS"
+	StreamEntities   = "CONSTELLATION_ENTITIES"
+	StreamEvents     = "CONSTELLATION_EVENTS"
+	StreamTelemetry  = "CONSTELLATION_TELEMETRY"
+	StreamCommands   = "CONSTELLATION_COMMANDS"
+	StreamQuarantine = "CONSTELLATION_QUARANTINE"
 )
 
 // Consumer names

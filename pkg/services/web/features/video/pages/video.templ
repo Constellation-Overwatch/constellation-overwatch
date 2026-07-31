@@ -23,14 +23,14 @@ templ VideoPage(entityIDs []string, webrtcBaseURL string) {
 templ VideoPanel(entityIDs []string, webrtcBaseURL string) {
 	<div id="video-panel"
 		class="panel"
-		data-signals={ fmt.Sprintf(`{
-			activeStreams: [],
-			streamCount: 0,
-			lastUpdate: '',
-			_isConnected: false,
-			selectedEntity: '',
-			webrtcBaseURL: '%s'
-		}`, webrtcBaseURL) }
+		data-signals={ templ.JSONString(map[string]any{
+			"activeStreams": []string{},
+			"streamCount": 0,
+			"lastUpdate": "",
+			"_isConnected": false,
+			"selectedEntity": "",
+			"webrtcBaseURL": webrtcBaseURL,
+		}) }
 		data-init="@get('/api/video/list')">
 		<div class="panel-header">
 			<h2>Video Feeds</h2>

@@ -54,7 +54,7 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 		</div>
 
 		<!-- Detailed View (Collapsible) -->
-		<div class="c4-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
+		<div class="c4-card-body" style={ map[string]string{"display": func() string { if !isDetailed { return "none" } else { return "block" } }()} }>
 
 			<!-- Video Player Placeholder - video component appended separately via SSE to avoid morph recreation -->
 			<div class="video-section" id={ "video-section-" + entity.EntityID } data-ignore-morph></div>
@@ -181,28 +181,4 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 			}
 		</div>
 	</div>
-}
-
-// C4EntityCardScript contains the JS logic for card interaction (toggle detail view).
-// WHEP video connection is handled by the shared WHEPScript (video_player.templ).
-templ C4EntityCardScript() {
-	<script>
-		function toggleEntityDetail(entityId) {
-			const card = document.getElementById('c4-entity-' + entityId);
-			if (!card) return;
-
-			const body = card.querySelector('.c4-card-body');
-			const isDetailed = card.classList.toggle('detailed');
-
-			if (isDetailed) {
-				body.style.display = 'block';
-				// Connect video when expanding (shared WHEP manager)
-				if (typeof connectWHEP === 'function') connectWHEP(entityId);
-			} else {
-				body.style.display = 'none';
-				// Disconnect video when collapsing
-				if (typeof disconnectWHEP === 'function') disconnectWHEP(entityId);
-			}
-		}
-	</script>
 }

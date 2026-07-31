@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
+	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/protocol"
 )
 
 // API Response types
@@ -131,15 +132,15 @@ type EntityState struct {
 	ThreatIntel *ThreatIntelState `json:"threat_intel,omitempty"`
 
 	// Device Identity (MAVLink/Legacy)
-	SystemID      uint8                  `json:"system_id,omitempty"`
-	ComponentID   uint8                  `json:"component_id,omitempty"`
-	DeviceID      string                 `json:"device_id,omitempty"`
-	StreamPort    string                 `json:"stream_port,omitempty"`
+	SystemID      uint8                 `json:"system_id,omitempty"`
+	ComponentID   uint8                 `json:"component_id,omitempty"`
+	DeviceID      string                `json:"device_id,omitempty"`
+	StreamPort    string                `json:"stream_port,omitempty"`
 	VideoConfig   *ontology.VideoConfig `json:"video_config,omitempty"`
-	Subject       string                 `json:"subject,omitempty"`
-	FirstSeen     time.Time              `json:"first_seen,omitempty"`
-	LastSeen      time.Time              `json:"last_seen,omitempty"`
-	Fingerprinted bool                   `json:"fingerprinted,omitempty"`
+	Subject       string                `json:"subject,omitempty"`
+	FirstSeen     time.Time             `json:"first_seen,omitempty"`
+	LastSeen      time.Time             `json:"last_seen,omitempty"`
+	Fingerprinted bool                  `json:"fingerprinted,omitempty"`
 
 	// Database Fields
 	Components     map[string]interface{} `json:"components"`
@@ -150,9 +151,18 @@ type EntityState struct {
 	Classification string                 `json:"classification,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata"`
 
+	// TelemetryCursors make replay/redelivery idempotent across Hub restarts.
+	TelemetryCursors map[string]TelemetryCursor `json:"telemetry_cursors,omitempty"`
+
 	// Timestamps
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// TelemetryCursor records the last applied message for one MAVLink type.
+type TelemetryCursor struct {
+	MessageUID string    `json:"message_uid"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 // PositionState contains position data from GPS and local navigation
@@ -366,15 +376,9 @@ type ThreatSummary struct {
 	AlertLevel         string         `json:"alert_level"`
 }
 
-// MAVLinkTelemetry represents a parsed MAVLink message
-type MAVLinkTelemetry struct {
-	MessageID   uint32                 `json:"message_id"`
-	MessageType string                 `json:"message_type"`
-	SystemID    uint8                  `json:"system_id"`
-	ComponentID uint8                  `json:"component_id"`
-	Data        map[string]interface{} `json:"data"`
-	Timestamp   time.Time              `json:"timestamp"`
-}
+// MAVLinkTelemetry is retained as a source-compatible alias for the canonical
+// versioned Pulsar-to-Hub protocol envelope.
+type MAVLinkTelemetry = protocol.TelemetryEnvelope
 
 // ═══════════════════════════════════════════════════════════
 // VIDEO FRAME TYPES - Video stream data from vision2constellation
