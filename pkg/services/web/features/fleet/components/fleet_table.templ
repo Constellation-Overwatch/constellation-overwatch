@@ -149,15 +149,15 @@ templ FleetRow(organizations []ontology.Organization, entity ontology.Entity) {
 
 templ FleetEditRow(organizations []ontology.Organization, entity ontology.Entity) {
 	<tr id={ fmt.Sprintf("fleet-row-%s", entity.EntityID) } class="form-row-inline"
-		data-signals={ fmt.Sprintf(`{
-			entity_id: '%s',
-			edit_org_id: '%s',
-			edit_name: '%s',
-			edit_entity_type: '%s',
-			edit_status: '%s',
-			edit_priority: '%s',
-			edit_is_live: %t
-		}`, entity.EntityID, entity.OrgID, entity.Name, entity.EntityType, entity.Status, entity.Priority, entity.IsLive) }>
+		data-signals={ templ.JSONString(map[string]any{
+			"entity_id": entity.EntityID,
+			"edit_org_id": entity.OrgID,
+			"edit_name": entity.Name,
+			"edit_entity_type": entity.EntityType,
+			"edit_status": entity.Status,
+			"edit_priority": entity.Priority,
+			"edit_is_live": entity.IsLive,
+		}) }>
 		<td>
 			<select data-bind="edit_org_id" class="inline-form-input" required>
 				for _, org := range organizations {

@@ -103,12 +103,12 @@ templ OrganizationRow(org ontology.Organization, selectedOrgID string) {
 
 templ OrganizationEditRow(org ontology.Organization) {
 	<tr id={ fmt.Sprintf("org-row-%s", org.OrgID) } class="form-row-inline"
-		data-signals={ fmt.Sprintf(`{
-			org_id: '%s',
-			edit_name: '%s',
-			edit_org_type: '%s',
-			edit_description: '%s'
-		}`, org.OrgID, org.Name, org.OrgType, org.Description) }>
+		data-signals={ templ.JSONString(map[string]any{
+			"org_id": org.OrgID,
+			"edit_name": org.Name,
+			"edit_org_type": org.OrgType,
+			"edit_description": org.Description,
+		}) }>
 		<td>
 			<input type="text"
 				data-bind="edit_name"

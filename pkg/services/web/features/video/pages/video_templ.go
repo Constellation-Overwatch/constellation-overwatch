@@ -127,16 +127,16 @@ func VideoPanel(entityIDs []string, webrtcBaseURL string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{
-			activeStreams: [],
-			streamCount: 0,
-			lastUpdate: '',
-			_isConnected: false,
-			selectedEntity: '',
-			webrtcBaseURL: '%s'
-		}`, webrtcBaseURL))
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.JSONString(map[string]any{
+			"activeStreams":  []string{},
+			"streamCount":    0,
+			"lastUpdate":     "",
+			"_isConnected":   false,
+			"selectedEntity": "",
+			"webrtcBaseURL":  webrtcBaseURL,
+		}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 33, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/video/pages/video.templ`, Line: 33, Col: 4}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {

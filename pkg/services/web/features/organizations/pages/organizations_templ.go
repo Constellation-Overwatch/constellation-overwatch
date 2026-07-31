@@ -9,7 +9,6 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"fmt"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/ontology"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/components"
 	"github.com/Constellation-Overwatch/constellation-overwatch/pkg/services/web/features/common/layouts"
@@ -66,12 +65,12 @@ func OrganizationsPage(organizations []ontology.Organization, selectedOrgID stri
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{
-					selectedOrgID: '%s',
-					_orgFetching: false
-				}`, selectedOrgID))
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.JSONString(map[string]any{
+					"selectedOrgID": selectedOrgID,
+					"_orgFetching":  false,
+				}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/pages/organizations.templ`, Line: 18, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/pages/organizations.templ`, Line: 17, Col: 6}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {

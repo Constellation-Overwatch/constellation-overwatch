@@ -266,14 +266,14 @@ func OrganizationEditRow(org ontology.Organization) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{
-			org_id: '%s',
-			edit_name: '%s',
-			edit_org_type: '%s',
-			edit_description: '%s'
-		}`, org.OrgID, org.Name, org.OrgType, org.Description))
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.JSONString(map[string]any{
+			"org_id":           org.OrgID,
+			"edit_name":        org.Name,
+			"edit_org_type":    org.OrgType,
+			"edit_description": org.Description,
+		}))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 111, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/organizations/components/organizations_table.templ`, Line: 111, Col: 4}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {

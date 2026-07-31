@@ -229,15 +229,15 @@ func C4EntityCard(entity shared.EntityState, isDetailed bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSSProperty(func() string {
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(map[string]string{"display": func() string {
 			if !isDetailed {
-				return "display: none;"
+				return "none"
 			} else {
-				return "display: block;"
+				return "block"
 			}
-		}()))
+		}()})
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 57, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/services/web/features/common/components/c4_entity_card.templ`, Line: 57, Col: 142}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {

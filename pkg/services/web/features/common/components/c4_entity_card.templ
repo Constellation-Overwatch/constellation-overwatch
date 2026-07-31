@@ -54,7 +54,7 @@ templ C4EntityCard(entity shared.EntityState, isDetailed bool) {
 		</div>
 
 		<!-- Detailed View (Collapsible) -->
-		<div class="c4-card-body" style={ templ.SafeCSSProperty(func() string { if !isDetailed { return "display: none;" } else { return "display: block;" } }()) }>
+		<div class="c4-card-body" style={ map[string]string{"display": func() string { if !isDetailed { return "none" } else { return "block" } }()} }>
 
 			<!-- Video Player Placeholder - video component appended separately via SSE to avoid morph recreation -->
 			<div class="video-section" id={ "video-section-" + entity.EntityID } data-ignore-morph></div>
