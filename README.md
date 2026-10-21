@@ -166,7 +166,7 @@ Please see the [Quick Start Guide](#quick-start-examples) below for detailed usa
 <summary>📋 Prerequisites</summary>
 <br>
 
-* Go 1.24 or higher
+* Go 1.26.10 or higher
 * [Task](https://taskfile.dev/) - Task runner (optional, recommended)
 
 </details>

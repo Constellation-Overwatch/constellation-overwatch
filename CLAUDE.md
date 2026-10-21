@@ -80,7 +80,7 @@ Default ports:
 ### Overview
 Constellation Overwatch is an industrial data fabric and C4 toolbelt for agentic drones, robots, sensors, and video streams. It's built as a monolithic "microlith" with embedded NATS JetStream for messaging.
 
-**Module:** `github.com/Constellation-Overwatch/constellation-overwatch` (Go 1.25)
+**Module:** `github.com/Constellation-Overwatch/constellation-overwatch` (Go 1.26)
 
 ### Core Components
 
