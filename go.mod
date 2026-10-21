@@ -1,8 +1,6 @@
 module github.com/Constellation-Overwatch/constellation-overwatch
 
-go 1.25.0
-
-toolchain go1.25.10
+go 1.26.10
 
 tool github.com/a-h/templ/cmd/templ
 
